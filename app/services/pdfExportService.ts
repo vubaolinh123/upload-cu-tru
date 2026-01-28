@@ -39,22 +39,22 @@ export async function exportToPDF(
   clonedElement.style.backgroundColor = '#ffffff';
 
   const opt = {
-    margin: [10, 10, 10, 10],
+    margin: [10, 10, 10, 10] as [number, number, number, number],
     filename: filename,
-    image: { type: 'jpeg', quality: 0.95 },
+    image: { type: 'jpeg' as const, quality: 0.95 },
     html2canvas: {
       scale: 2,
       useCORS: true,
       letterRendering: true,
       backgroundColor: '#ffffff',
-      logging: false, // Disable logging to prevent console spam
+      logging: false,
     },
     jsPDF: {
-      unit: 'mm',
-      format: 'a4',
+      unit: 'mm' as const,
+      format: 'a4' as const,
       orientation: 'portrait' as const,
     },
-    pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+    pagebreak: { mode: 'avoid-all' as const },
   };
 
   // Create a temporary container
