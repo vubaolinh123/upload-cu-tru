@@ -8,26 +8,19 @@ interface ResidenceReportTemplateProps {
     accumulatedPersons: PersonInfo[];
 }
 
-// Dotted line for empty fields only
-const Dots = ({ width = '100px' }: { width?: string }) => (
-    <span
-        style={{
-            display: 'inline-block',
-            minWidth: width,
-            borderBottom: '1px dotted #000',
-            verticalAlign: 'bottom',
-        }}
-    >
-        &nbsp;
+// Dotted line using actual dot characters (works in print)
+const Dots = ({ count = 20 }: { count?: number }) => (
+    <span style={{ letterSpacing: '2px' }}>
+        {'.'.repeat(count)}
     </span>
 );
 
-// Field with value (no underline) or dots if empty
-const Field = ({ value }: { value?: string }) => {
+// Field with value or dots if empty
+const Field = ({ value, dotCount = 15 }: { value?: string; dotCount?: number }) => {
     if (value && value.trim()) {
         return <span style={{ fontWeight: 500 }}>{value}</span>;
     }
-    return <Dots width="80px" />;
+    return <Dots count={dotCount} />;
 };
 
 export default function ResidenceReportTemplate({ data, accumulatedPersons }: ResidenceReportTemplateProps) {
@@ -72,28 +65,28 @@ export default function ResidenceReportTemplate({ data, accumulatedPersons }: Re
 
             {/* Date and Location */}
             <p style={{ margin: '8px 0' }}>
-                Hôm nay, vào lúc <Field value={header.gioLap} /> giờ <Dots width="30px" /> ngày{' '}
-                <Field value={header.ngayLap} /> tháng <Field value="01" /> năm 2026
+                Hôm nay, vào lúc <Field value={header.gioLap} dotCount={5} /> giờ <Dots count={5} /> ngày{' '}
+                <Field value={header.ngayLap} dotCount={5} /> tháng <Field value="01" dotCount={5} /> năm 2026
             </p>
             <p style={{ margin: '8px 0' }}>
-                Tại địa chỉ: <Field value={header.diaChi} />phường {header.phuong}, tỉnh {header.tinhThanh}.
+                Tại địa chỉ: <Field value={header.diaChi} dotCount={40} />phường {header.phuong}, tỉnh {header.tinhThanh}.
             </p>
 
             {/* Officers */}
             <p style={{ margin: '8px 0' }}>Chúng tôi gồm:</p>
             {nguoiLap.map((person, idx) => (
                 <p key={idx} style={{ margin: '4px 0', paddingLeft: '15px' }}>
-                    {idx + 1}/ Ông: <Field value={person.hoTen} /> ; Chức vụ: <Field value={person.chucVu} />
+                    {idx + 1}/ Ông: <Field value={person.hoTen} dotCount={25} /> ; Chức vụ: <Field value={person.chucVu} dotCount={20} />
                 </p>
             ))}
             <p style={{ margin: '4px 0', paddingLeft: '15px' }}>
-                2/ Ông: <Dots width="200px" /> ; Chức vụ: <Dots width="150px" />
+                2/ Ông: <Dots count={30} /> ; Chức vụ: <Dots count={25} />
             </p>
 
             {/* Witness */}
             <p style={{ margin: '8px 0' }}>Người chứng kiến (nếu có):</p>
             <p style={{ margin: '4px 0', paddingLeft: '15px' }}>
-                Họ tên: <Dots width="200px" />; sinh ngày: <Dots width="50px" />/<Dots width="50px" />/<Dots width="50px" />
+                Họ tên: <Dots count={30} />; sinh ngày: <Dots count={8} />/<Dots count={8} />/<Dots count={8} />
             </p>
 
             {/* Household info */}
@@ -101,10 +94,10 @@ export default function ResidenceReportTemplate({ data, accumulatedPersons }: Re
                 Tiến hành lập biên bản kiểm tra cư trú tại căn nhà địa chỉ trên do ông bà:
             </p>
             <p style={{ margin: '4px 0', paddingLeft: '15px' }}>
-                Họ và tên: <Field value={chuHo.hoTen} />; Sinh ngày: <Field value={chuHo.ngaySinh} />
+                Họ và tên: <Field value={chuHo.hoTen} dotCount={30} />; Sinh ngày: <Field value={chuHo.ngaySinh} dotCount={15} />
             </p>
             <p style={{ margin: '4px 0', paddingLeft: '15px' }}>
-                Số CCCD: <Field value={chuHo.soCCCD} />; là: <Field value="Chủ hộ" />
+                Số CCCD: <Field value={chuHo.soCCCD} dotCount={20} />; là: <Field value="Chủ hộ" dotCount={10} />
             </p>
 
             {/* Inspection Results Header */}
@@ -121,24 +114,24 @@ export default function ResidenceReportTemplate({ data, accumulatedPersons }: Re
 
             {/* Section 1 - List of residents */}
             <p style={{ margin: '8px 0' }}>
-                1.Thời điểm kiểm tra tại căn nhà/phòng số <Dots width="50px" /> địa chỉ trên thực tế có{' '}
+                1.Thời điểm kiểm tra tại căn nhà/phòng số <Dots count={8} /> địa chỉ trên thực tế có{' '}
                 <strong>{persons.length}</strong> nhân khẩu đang cư trú gồm:
             </p>
 
-            {/* Residents list - Compact layout, no gaps */}
+            {/* Residents list - Compact layout */}
             {persons.map((person, idx) => (
                 <div key={`${person.soCCCD}-${idx}`} style={{ margin: '8px 0', paddingLeft: '15px' }}>
                     <p style={{ margin: '2px 0' }}>
-                        {idx + 1}/ Họ tên: <Field value={person.hoTen} />; sinh ngày: <Field value={person.ngaySinh} />
+                        {idx + 1}/ Họ tên: <Field value={person.hoTen} dotCount={30} />; sinh ngày: <Field value={person.ngaySinh} dotCount={15} />
                     </p>
                     <p style={{ margin: '2px 0' }}>
-                        Số CCCD/ĐDCN: <Field value={person.soCCCD} />; ngày cấp: <Dots width="80px" />
+                        Số CCCD/ĐDCN: <Field value={person.soCCCD} dotCount={20} />; ngày cấp: <Dots count={12} />
                     </p>
                     <p style={{ margin: '2px 0' }}>
-                        HKTT: <Field value={person.hktt || person.queQuan} />
+                        HKTT: <Field value={person.hktt || person.queQuan} dotCount={50} />
                     </p>
                     <p style={{ margin: '2px 0' }}>
-                        Nghề nghiệp: <Field value={person.ngheNghiep} />; Quan hệ với chủ hộ: <Field value={person.quanHeVoiChuHo} />
+                        Nghề nghiệp: <Field value={person.ngheNghiep} dotCount={20} />; Quan hệ với chủ hộ: <Field value={person.quanHeVoiChuHo} dotCount={15} />
                     </p>
                 </div>
             ))}
@@ -149,10 +142,10 @@ export default function ResidenceReportTemplate({ data, accumulatedPersons }: Re
                 điện tử/ chưa cung cấp các loại giấy tờ liên quan đến việc đăng ký cư trú tại địa chỉ trên gồm:
             </p>
             <p style={{ margin: '5px 0', paddingLeft: '15px' }}>
-                <Dots width="100%" />
+                <Dots count={80} />
             </p>
             <p style={{ margin: '5px 0', paddingLeft: '15px' }}>
-                <Dots width="100%" />
+                <Dots count={80} />
             </p>
 
             {/* Section 3 - Owner's opinion */}
@@ -160,7 +153,7 @@ export default function ResidenceReportTemplate({ data, accumulatedPersons }: Re
                 3.Ý kiến trình bày của chủ hộ/chủ sở hữu nhà hoặc người có liên quan:
             </p>
             <p style={{ margin: '5px 0', paddingLeft: '15px', textAlign: 'center' }}>
-                <Field value={yKienChuHo} />
+                <Field value={yKienChuHo} dotCount={60} />
             </p>
 
             {/* Section 4 - Police recommendations */}
@@ -168,16 +161,16 @@ export default function ResidenceReportTemplate({ data, accumulatedPersons }: Re
                 4. Kiến nghị của Công an phường (nếu có):
             </p>
             <p style={{ margin: '5px 0', paddingLeft: '15px', textAlign: 'center' }}>
-                <Field value={kienNghiCongAn} />
+                <Field value={kienNghiCongAn} dotCount={60} />
             </p>
 
             {/* Conclusion */}
             <p style={{ margin: '15px 0 5px 0' }}>
-                Biên bản được lập thành <Dots width="30px" /> bản, giao cho chủ hộ/chủ sở hữu/người quản lý và
+                Biên bản được lập thành <Dots count={5} /> bản, giao cho chủ hộ/chủ sở hữu/người quản lý và
                 người có liên quan 01 bản, 01 bản lưu hồ sơ.
             </p>
             <p style={{ margin: '5px 0' }}>
-                Biên bản lập xong lúc <Dots width="30px" /> giờ <Dots width="30px" /> cùng ngày, đã thông qua
+                Biên bản lập xong lúc <Dots count={5} /> giờ <Dots count={5} /> cùng ngày, đã thông qua
                 cho những người có tên trong biên bản nghe, đồng ý nội dung và ký tên xác nhận.
             </p>
 
