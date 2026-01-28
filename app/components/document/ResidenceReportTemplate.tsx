@@ -118,20 +118,32 @@ export default function ResidenceReportTemplate({ data, accumulatedPersons }: Re
                 <strong>{persons.length}</strong> nhân khẩu đang cư trú gồm:
             </p>
 
-            {/* Residents list - Compact layout */}
+            {/* Residents list - Enhanced with all OCR fields */}
             {persons.map((person, idx) => (
-                <div key={`${person.soCCCD}-${idx}`} style={{ margin: '8px 0', paddingLeft: '15px' }}>
+                <div key={`${person.soCCCD}-${idx}`} style={{ margin: '10px 0', paddingLeft: '15px' }}>
                     <p style={{ margin: '2px 0' }}>
-                        {idx + 1}/ Họ tên: <Field value={person.hoTen} dotCount={30} />; sinh ngày: <Field value={person.ngaySinh} dotCount={15} />
+                        {idx + 1}/ Họ tên: <Field value={person.hoTen} dotCount={30} />; Giới tính: <Field value={person.gioiTinh} dotCount={8} />
                     </p>
                     <p style={{ margin: '2px 0' }}>
-                        Số CCCD/ĐDCN: <Field value={person.soCCCD} dotCount={20} />; ngày cấp: <Dots count={12} />
+                        Sinh ngày: <Field value={person.ngaySinh} dotCount={15} />; Dân tộc: <Field value={person.danToc} dotCount={10} />; Quốc tịch: <Field value={person.quocTich} dotCount={12} />
                     </p>
                     <p style={{ margin: '2px 0' }}>
-                        HKTT: <Field value={person.hktt || person.queQuan} dotCount={50} />
+                        Số CCCD/ĐDCN: <Field value={person.soCCCD} dotCount={20} />; Số HSCT: <Field value={person.soHSCT} dotCount={15} />
                     </p>
                     <p style={{ margin: '2px 0' }}>
-                        Nghề nghiệp: <Field value={person.ngheNghiep} dotCount={20} />; Quan hệ với chủ hộ: <Field value={person.quanHeVoiChuHo} dotCount={15} />
+                        Quê quán: <Field value={person.queQuan} dotCount={50} />
+                    </p>
+                    <p style={{ margin: '2px 0' }}>
+                        Quan hệ với chủ hộ: <Field value={person.quanHeVoiChuHo} dotCount={15} />
+                    </p>
+                    <p style={{ margin: '2px 0' }}>
+                        Ở đâu đến: <Field value={person.oDauDen} dotCount={60} />
+                    </p>
+                    <p style={{ margin: '2px 0' }}>
+                        Ngày đến: <Field value={person.ngayDen} dotCount={15} />
+                    </p>
+                    <p style={{ margin: '2px 0' }}>
+                        Địa chỉ thường trú: <Field value={person.diaChiThuongTru} dotCount={50} />
                     </p>
                 </div>
             ))}

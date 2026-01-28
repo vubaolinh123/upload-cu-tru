@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 
 interface ImagePreviewProps {
@@ -10,12 +10,43 @@ interface ImagePreviewProps {
     isProcessing?: boolean;
 }
 
+/**
+ * Format elapsed time as mm:ss
+ */
+function formatElapsedTime(seconds: number): string {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}
+
 export default function ImagePreview({
     src,
     fileName,
     onRemove,
     isProcessing = false,
 }: ImagePreviewProps) {
+    const [elapsedTime, setElapsedTime] = useState(0);
+
+    // Timer for elapsed time when processing
+    useEffect(() => {
+        let interval: NodeJS.Timeout | null = null;
+
+        if (isProcessing) {
+            setElapsedTime(0);
+            interval = setInterval(() => {
+                setElapsedTime((prev) => prev + 1);
+            }, 1000);
+        } else {
+            setElapsedTime(0);
+        }
+
+        return () => {
+            if (interval) {
+                clearInterval(interval);
+            }
+        };
+    }, [isProcessing]);
+
     return (
         <div className="relative w-full rounded-2xl overflow-hidden bg-gray-100 shadow-xl">
             {/* Image Container */}
@@ -30,12 +61,27 @@ export default function ImagePreview({
 
                 {/* Processing Overlay */}
                 {isProcessing && (
-                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center">
-                        <div className="text-center text-white">
+                    <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center">
+                        <div className="text-center text-white px-6">
+                            {/* Spinner */}
                             <div className="w-16 h-16 border-4 border-white/30 border-t-white rounded-full animate-spin mx-auto mb-4" />
-                            <p className="text-lg font-medium animate-pulse">
+
+                            {/* Status text */}
+                            <p className="text-lg font-medium mb-2">
                                 Đang phân tích ảnh...
                             </p>
+
+                            {/* Elapsed time */}
+                            <p className="text-3xl font-mono font-bold text-blue-300 mb-3">
+                                {formatElapsedTime(elapsedTime)}
+                            </p>
+
+                            {/* Warning message */}
+                            <div className="bg-yellow-500/20 border border-yellow-400/50 rounded-lg px-4 py-2 max-w-xs mx-auto">
+                                <p className="text-yellow-300 text-sm">
+                                    ⏳ API có thể mất 2-5 phút để xử lý
+                                </p>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -64,7 +110,9 @@ export default function ImagePreview({
                             <p className="text-white font-medium text-sm truncate max-w-[200px] sm:max-w-[300px]">
                                 {fileName || 'Ảnh đã upload'}
                             </p>
-                            <p className="text-white/70 text-xs">Sẵn sàng xử lý</p>
+                            <p className="text-white/70 text-xs">
+                                {isProcessing ? 'Đang xử lý...' : 'Sẵn sàng xử lý'}
+                            </p>
                         </div>
                     </div>
 

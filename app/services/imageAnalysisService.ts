@@ -1,5 +1,8 @@
 import { PersonInfo } from '../types/residence';
-import { getFakeDataForUpload, simulateApiDelay } from '../data/fakeData';
+import { OCRAPIResponse } from '../types/apiTypes';
+import ocrApiClient from '../lib/axiosConfig';
+import { parseApiError } from '../lib/errorHandler';
+import { mapOCRResponseToPersonInfo, validateOCRResponse } from '../lib/dataMapper';
 
 export interface AnalysisResult {
     success: boolean;
@@ -8,31 +11,62 @@ export interface AnalysisResult {
 }
 
 /**
- * Mock image analysis service
- * In production, this would call an actual API endpoint
+ * Analyze image using OCR API
+ * Note: API may take 2-5 minutes to respond
  */
-export async function analyzeImage(imageFile: File, uploadIndex: number): Promise<AnalysisResult> {
+export async function analyzeImage(
+    imageFile: File,
+    _uploadIndex: number // kept for compatibility, not used with real API
+): Promise<AnalysisResult> {
     try {
-        // Simulate API processing time
-        await simulateApiDelay(1500);
+        // Create FormData with image
+        const formData = new FormData();
+        formData.append('image', imageFile);
 
-        // In production, you would:
-        // 1. Upload the image to your API
-        // 2. Wait for OCR/AI analysis
-        // 3. Return the parsed data
+        console.log('[OCR Service] Sending image to API...');
 
-        // For now, return fake data based on upload index (cycles through batches)
-        const fakeData = getFakeDataForUpload(uploadIndex);
+        // Call OCR API via proxy
+        const response = await ocrApiClient.post<OCRAPIResponse>('/ocr', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
+
+        console.log('[OCR Service] Response received:', response.data);
+
+        // Check API error field
+        if (response.data.error !== '0') {
+            return {
+                success: false,
+                data: null,
+                error: response.data.Message || 'API trả về lỗi.',
+            };
+        }
+
+        // Validate data array
+        if (!validateOCRResponse(response.data.data)) {
+            return {
+                success: false,
+                data: null,
+                error: 'API trả về dữ liệu không hợp lệ hoặc rỗng.',
+            };
+        }
+
+        // Map response to PersonInfo format
+        const personInfoList = mapOCRResponseToPersonInfo(response.data.data);
+
+        console.log(`[OCR Service] Parsed ${personInfoList.length} persons`);
 
         return {
             success: true,
-            data: fakeData,
+            data: personInfoList,
         };
     } catch (error) {
+        console.error('[OCR Service] Error:', error);
         return {
             success: false,
             data: null,
-            error: error instanceof Error ? error.message : 'Có lỗi xảy ra khi phân tích ảnh',
+            error: parseApiError(error),
         };
     }
 }
