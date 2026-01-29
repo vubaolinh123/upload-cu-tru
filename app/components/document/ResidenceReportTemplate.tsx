@@ -132,7 +132,7 @@ export default function ResidenceReportTemplate({ household, headerInfo = {} }: 
                 Họ và tên: <Field value={chuHo.hoTen} dotCount={40} />; Sinh ngày: <Field value={chuHo.ngaySinh} dotCount={15} />
             </p>
             <p style={{ margin: '4px 0', paddingLeft: '15px' }}>
-                Số CCCD: <Field value={chuHo.soCCCD} dotCount={30} /> là <Dots count={30} />
+                Số CCCD: <Field value={chuHo.soCCCD} dotCount={30} /> là <span style={{ fontWeight: 500 }}>Chủ hộ</span>
             </p>
 
             {/* Inspection Results Header */}
