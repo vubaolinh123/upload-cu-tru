@@ -11,13 +11,9 @@ export const fakeDataBatch1: PersonInfo[] = [
         queQuan: 'Tỉnh Khánh Hòa',
         danToc: 'Kinh',
         quocTich: 'Việt Nam',
-        soHSCT: '22402-027531',
         quanHeVoiChuHo: 'Chủ hộ',
         oDauDen: '',
-        ngayDen: '18/02/2025',
-        diaChiThuongTru: 'Căn hộ chung cư số 201 (tầng 2), Chung cư CT1B, Lô NOXH-01, Khu đô thị mới Phước Long, Phường Nam Nha Trang, Tỉnh Khánh Hóa',
-        ngheNghiep: 'Nhân viên văn phòng',
-        hktt: 'Tỉnh Khánh Hòa',
+        hoKhauThuongTru: 'Căn hộ chung cư số 201 (tầng 2), Chung cư CT1B, Lô NOXH-01, Khu đô thị mới Phước Long, Phường Nam Nha Trang, Tỉnh Khánh Hóa',
     },
     {
         stt: 2,
@@ -28,13 +24,9 @@ export const fakeDataBatch1: PersonInfo[] = [
         queQuan: 'Xã Bắc Ninh Hòa, Tỉnh Khánh Hòa',
         danToc: 'Kinh',
         quocTich: 'Việt Nam',
-        soHSCT: '',
         quanHeVoiChuHo: 'Con',
         oDauDen: '',
-        ngayDen: '18/02/2025',
-        diaChiThuongTru: 'Căn hộ chung cư số 201 (tầng 2), Chung cư CT1B, Lô NOXH-01, Khu đô thị mới Phước Long, Phường Nam Nha Trang, Tỉnh Khánh Hóa',
-        ngheNghiep: 'Học sinh',
-        hktt: 'Tỉnh Khánh Hòa',
+        hoKhauThuongTru: 'Căn hộ chung cư số 201 (tầng 2), Chung cư CT1B, Lô NOXH-01, Khu đô thị mới Phước Long, Phường Nam Nha Trang, Tỉnh Khánh Hóa',
     },
     {
         stt: 3,
@@ -45,154 +37,91 @@ export const fakeDataBatch1: PersonInfo[] = [
         queQuan: 'Tỉnh Khánh Hòa',
         danToc: 'Kinh',
         quocTich: 'Việt Nam',
-        soHSCT: '',
         quanHeVoiChuHo: 'Con',
         oDauDen: '',
-        ngayDen: '18/02/2025',
-        diaChiThuongTru: 'Căn hộ chung cư số 201 (tầng 2), Chung cư CT1B, Lô NOXH-01, Khu đô thị mới Phước Long, Phường Nam Nha Trang, Tỉnh Khánh Hóa',
-        ngheNghiep: 'Học sinh',
-        hktt: 'Tỉnh Khánh Hòa',
+        hoKhauThuongTru: 'Căn hộ chung cư số 201 (tầng 2), Chung cư CT1B, Lô NOXH-01, Khu đô thị mới Phước Long, Phường Nam Nha Trang, Tỉnh Khánh Hóa',
     },
 ];
 
-// Fake data batch 2 - PHẠM THỊ NHƯ NGUYỆT household
+// Fake data batch 2 - ĐINH VĂN NGHĨA household
 export const fakeDataBatch2: PersonInfo[] = [
     {
         stt: 1,
-        hoTen: 'PHẠM THỊ NHƯ NGUYỆT',
-        soCCCD: '056181012212',
-        ngaySinh: '03/04/1981',
-        gioiTinh: 'Nữ',
-        queQuan: 'Xã Bắc Ninh Hòa, Tỉnh Khánh Hòa',
+        hoTen: 'ĐINH VĂN NGHĨA',
+        soCCCD: '056085002111',
+        ngaySinh: '15/03/1985',
+        gioiTinh: 'Nam',
+        queQuan: 'Xã Vạn Thắng, Huyện Vạn Ninh, Tỉnh Khánh Hòa',
         danToc: 'Kinh',
         quocTich: 'Việt Nam',
-        soHSCT: '22402-027800',
         quanHeVoiChuHo: 'Chủ hộ',
-        oDauDen: 'THÔN LẠC AN, Xã Ninh Thọ, Thị xã Ninh Hòa, Tỉnh Khánh Hòa',
-        ngayDen: '19/09/2024',
-        diaChiThuongTru: 'Căn 611 CT1B NOXH-01 khu DTM Phước Long, Phường Nam Nha Trang, Tỉnh Khánh Hóa',
-        ngheNghiep: 'Kinh doanh',
-        hktt: 'Tỉnh Khánh Hòa',
+        oDauDen: '',
+        hoKhauThuongTru: 'Căn hộ 301, Chung cư CT2A, Phước Long, Nha Trang',
     },
     {
         stt: 2,
-        hoTen: 'NGUYỄN VŨ NGUYỆT MINH',
-        soCCCD: '056303012456',
-        ngaySinh: '20/02/2003',
+        hoTen: 'NGUYỄN THỊ HỒNG',
+        soCCCD: '056088003222',
+        ngaySinh: '20/08/1988',
         gioiTinh: 'Nữ',
-        queQuan: 'Tỉnh Nghệ An',
+        queQuan: 'Phường Phước Long, Nha Trang, Khánh Hòa',
         danToc: 'Kinh',
         quocTich: 'Việt Nam',
-        soHSCT: '',
-        quanHeVoiChuHo: 'Con',
-        oDauDen: 'THÔN LẠC AN, Xã Ninh Thọ, Thị xã Ninh Hòa, Tỉnh Khánh Hòa',
-        ngayDen: '19/09/2024',
-        diaChiThuongTru: 'Căn 611 CT1B NOXH-01 khu DTM Phước Long, Phường Nam Nha Trang, Tỉnh Khánh Hóa',
-        ngheNghiep: 'Sinh viên',
-        hktt: 'Tỉnh Khánh Hòa',
-    },
-    {
-        stt: 3,
-        hoTen: 'DƯƠNG PHÚC',
-        soCCCD: '056220000174',
-        ngaySinh: '20/01/2020',
-        gioiTinh: 'Nam',
-        queQuan: 'Tỉnh Khánh Hòa',
-        danToc: 'Kinh',
-        quocTich: 'Việt Nam',
-        soHSCT: '',
-        quanHeVoiChuHo: 'Con',
-        oDauDen: 'THÔN LẠC AN, Xã Ninh Thọ, Thị xã Ninh Hòa, Tỉnh Khánh Hòa',
-        ngayDen: '19/09/2024',
-        diaChiThuongTru: 'Căn 611 CT1B NOXH-01 khu DTM Phước Long, Phường Nam Nha Trang, Tỉnh Khánh Hóa',
-        ngheNghiep: 'Trẻ em',
-        hktt: 'Tỉnh Khánh Hòa',
+        quanHeVoiChuHo: 'Vợ',
+        oDauDen: '',
+        hoKhauThuongTru: 'Căn hộ 301, Chung cư CT2A, Phước Long, Nha Trang',
     },
 ];
 
-// Fake data batch 3 - MAI THẾ ĐOÀN household
+// Fake data batch 3 - TRẦN MINH TUẤN household
 export const fakeDataBatch3: PersonInfo[] = [
     {
         stt: 1,
-        hoTen: 'MAI THẾ ĐOÀN',
-        soCCCD: '038054012394',
-        ngaySinh: '30/11/1954',
+        hoTen: 'TRẦN MINH TUẤN',
+        soCCCD: '056090005555',
+        ngaySinh: '10/06/1990',
         gioiTinh: 'Nam',
-        queQuan: 'Xã Vĩ Vương, Tỉnh Thanh Hóa',
+        queQuan: 'Phường Cam Nghĩa, TP Cam Ranh, Khánh Hòa',
         danToc: 'Kinh',
         quocTich: 'Việt Nam',
-        soHSCT: '22402-027878',
         quanHeVoiChuHo: 'Chủ hộ',
-        oDauDen: 'SỐ NHÀ 38 ĐƯỜNG NGUYỄN ĐỨC CẢNH, Phường Phước Long, Thành phố Nha Trang, Tỉnh Khánh Hòa',
-        ngayDen: '04/10/2024',
-        diaChiThuongTru: 'Căn 305 CT1B NOXH-01 KĐTM Phước Long, Phường Nam Nha Trang, Tỉnh Khánh Hóa',
-        ngheNghiep: 'Hưu trí',
-        hktt: 'Tỉnh Thanh Hóa',
-    },
-    {
-        stt: 2,
-        hoTen: 'NGUYỄN THỊ LAI',
-        soCCCD: '038155019373',
-        ngaySinh: '05/04/1955',
-        gioiTinh: 'Nữ',
-        queQuan: 'Xã Hà Vương, Tỉnh Thanh Hóa',
-        danToc: 'Kinh',
-        quocTich: 'Việt Nam',
-        soHSCT: '',
-        quanHeVoiChuHo: 'Vợ',
-        oDauDen: '38 ĐƯỜNG NGUYỄN ĐỨC CẢNH, TỔ 2 PHƯỚC BÌNH, Phường Phước Long, Thành phố Nha Trang, Tỉnh Khánh Hòa',
-        ngayDen: '04/10/2024',
-        diaChiThuongTru: 'Căn 305 CT1B NOXH-01 KĐTM Phước Long, Phường Nam Nha Trang, Tỉnh Khánh Hóa',
-        ngheNghiep: 'Hưu trí',
-        hktt: 'Tỉnh Thanh Hóa',
+        oDauDen: 'TP Hồ Chí Minh',
+        hoKhauThuongTru: 'Số 15 Đường Lê Hồng Phong, Phường Nam Nha Trang, Khánh Hòa',
     },
 ];
 
-// All fake data batches for cycling through on each upload
-export const allFakeDataBatches: PersonInfo[][] = [
-    fakeDataBatch1,
-    fakeDataBatch2,
-    fakeDataBatch3,
-];
-
-// Get fake data for a specific upload index (cycles through batches)
-export const getFakeDataForUpload = (uploadIndex: number): PersonInfo[] => {
-    const batchIndex = uploadIndex % allFakeDataBatches.length;
-    return allFakeDataBatches[batchIndex];
-};
-
-// Base document data (header info that stays the same)
-export const baseDocumentData: Omit<ResidenceDocument, 'danhSachNhanKhau'> = {
+// Base document data (header info)
+export const baseDocumentData: ResidenceDocument = {
     header: {
         congAnTinh: 'KHÁNH HÒA',
         congAnPhuong: 'NAM NHA TRANG',
-        ngayLap: '28',
+        ngayLap: '15',
         gioLap: '09',
-        diaChi: 'Căn hộ chung cư số 201 (tầng 2), Chung cư CT1B, Lô NOXH-01',
+        diaChi: '',
         phuong: 'Nam Nha Trang',
         tinhThanh: 'Khánh Hòa',
     },
     nguoiLap: [
         {
-            hoTen: 'Tô Nguyên Văn Quốc',
-            chucVu: 'Cán bộ CSKV',
+            hoTen: 'Võ Văn Giáp',
+            chucVu: 'Công an viên',
         },
     ],
     chuHo: {
-        hoTen: 'NGUYỄN THỊ CẨM NHUNG',
-        ngaySinh: '13/11/1988',
-        soCCCD: '056188002504',
+        hoTen: '',
+        ngaySinh: '',
+        soCCCD: '',
     },
-    yKienChuHo: 'Đồng ý với nội dung biên bản kiểm tra cư trú.',
-    kienNghiCongAn: 'Không có kiến nghị.',
+    danhSachNhanKhau: [],
 };
 
-// Function to simulate API delay
-export const simulateApiDelay = (ms: number = 2000): Promise<void> => {
+// Function to get fake data for a specific upload
+export function getFakeDataForUpload(uploadIndex: number): PersonInfo[] {
+    const dataSets = [fakeDataBatch1, fakeDataBatch2, fakeDataBatch3];
+    return dataSets[uploadIndex % dataSets.length];
+}
+
+// Simulate API delay
+export function simulateApiDelay(ms: number = 2000): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
-};
-
-// Generate unique ID
-export const generateId = (): string => {
-    return `img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-};
+}

@@ -9,13 +9,9 @@ export interface PersonInfo {
     queQuan: string;
     danToc: string;
     quocTich: string;
-    soHSCT: string;
     quanHeVoiChuHo: string;
     oDauDen: string;
-    ngayDen: string;
-    diaChiThuongTru: string;
-    ngheNghiep?: string;
-    hktt?: string;
+    hoKhauThuongTru: string; // Changed from diaChiThuongTru
 }
 
 export interface DocumentHeader {

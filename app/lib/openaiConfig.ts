@@ -1,15 +1,16 @@
 /**
  * OpenAI API Configuration for OCR
+ * Using official OpenAI SDK
  */
 
 export const OPENAI_CONFIG = {
-    endpoint: 'https://api.openai.com/v1/responses',
     model: 'gpt-4o',
-    maxOutputTokens: 70000,
+    maxTokens: 70000,
 };
 
 /**
  * OCR Prompt template for GPT-4o
+ * Updated to read correct fields from household registration images
  */
 export const OCR_PROMPT = `Ảnh tôi đã tải lên trong cuộc trò chuyện này.
 
@@ -21,8 +22,22 @@ Hãy:
 5. Trả kết quả HOÀN TOÀN BẰNG TIẾNG VIỆT.
 6. Trả về đúng định dạng JSON dưới đây, không thêm giải thích.
 
+QUAN TRỌNG - Đọc đúng các cột trong ảnh:
+- "stt": Số thứ tự trong ảnh
+- "hoTen": Họ và tên
+- "soCCCD": Số CCCD/CMND
+- "ngaySinh": Ngày tháng năm sinh
+- "gioiTinh": Nam hoặc Nữ
+- "queQuan": Quê quán (cột ghi nơi sinh/nguyên quán)
+- "danToc": Dân tộc
+- "quocTich": Quốc tịch
+- "quanHeVoiChuHo": Quan hệ với chủ hộ (Chủ hộ, Vợ, Chồng, Con, Con đẻ, Cháu...)
+- "oDauDen": Ở đâu đến - địa chỉ nơi ở trước đó (ví dụ: 25 Lô NV07 Khu ĐTM...)
+- "hoKhauThuongTru": Hộ khẩu thường trú - địa chỉ đăng ký thường trú (ví dụ: Căn hộ chung cư số 807...)
+
 [
   {
+    "stt": number,
     "hoTen": string | null,
     "soCCCD": string | null,
     "ngaySinh": string | null,
@@ -30,35 +45,8 @@ Hãy:
     "queQuan": string | null,
     "danToc": string | null,
     "quocTich": string | null,
-    "soHSCT": string | null,
     "quanHeVoiChuHo": string | null,
     "oDauDen": string | null,
-    "ngayDen": string | null,
-    "diaChiThuongTru": string | null
+    "hoKhauThuongTru": string | null
   }
 ]`;
-
-/**
- * Build OpenAI request body for OCR
- */
-export function buildOpenAIRequestBody(base64Image: string, mimeType: string = 'image/jpeg') {
-    return {
-        model: OPENAI_CONFIG.model,
-        input: [
-            {
-                role: 'user',
-                content: [
-                    {
-                        type: 'input_text',
-                        text: OCR_PROMPT,
-                    },
-                    {
-                        type: 'input_image',
-                        image_url: `data:${mimeType};base64,${base64Image}`,
-                    },
-                ],
-            },
-        ],
-        max_output_tokens: OPENAI_CONFIG.maxOutputTokens,
-    };
-}

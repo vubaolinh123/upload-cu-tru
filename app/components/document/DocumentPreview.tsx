@@ -1,15 +1,14 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ResidenceDocument, PersonInfo } from '../../types/residence';
+import { Household } from '../../types/household';
 import ResidenceReportTemplate from './ResidenceReportTemplate';
 
 interface DocumentPreviewProps {
-    data: ResidenceDocument;
-    accumulatedPersons: PersonInfo[];
+    household: Household;
 }
 
-export default function DocumentPreview({ data, accumulatedPersons }: DocumentPreviewProps) {
+export default function DocumentPreview({ household }: DocumentPreviewProps) {
     const [scale, setScale] = useState(1);
 
     const zoomIn = () => setScale((prev) => Math.min(prev + 0.1, 1.5));
@@ -45,7 +44,7 @@ export default function DocumentPreview({ data, accumulatedPersons }: DocumentPr
                     </svg>
                 </button>
                 <span className="text-xs text-gray-500 ml-2">
-                    ({accumulatedPersons.length} nhân khẩu)
+                    ({household.allPersons.length} nhân khẩu)
                 </span>
             </div>
 
@@ -55,7 +54,7 @@ export default function DocumentPreview({ data, accumulatedPersons }: DocumentPr
                     className="transition-transform duration-200 origin-top"
                     style={{ transform: `scale(${scale})` }}
                 >
-                    <ResidenceReportTemplate data={data} accumulatedPersons={accumulatedPersons} />
+                    <ResidenceReportTemplate household={household} />
                 </div>
             </div>
         </div>

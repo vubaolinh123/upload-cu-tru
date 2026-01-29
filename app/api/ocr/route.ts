@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { OPENAI_CONFIG, buildOpenAIRequestBody } from '../../lib/openaiConfig';
-import { parseOCRResponse } from '../../lib/openaiParser';
+import OpenAI from 'openai';
+import { OPENAI_CONFIG, OCR_PROMPT } from '../../lib/openaiConfig';
+import { parseOCRResponseFromSDK } from '../../lib/openaiParser';
 
 /**
  * API Route to proxy OCR requests to OpenAI
- * Receives image file → converts to base64 → sends to GPT-4o → returns parsed data
+ * Using official OpenAI SDK
  */
 export async function POST(request: NextRequest) {
     try {
@@ -17,6 +18,9 @@ export async function POST(request: NextRequest) {
                 { status: 500 }
             );
         }
+
+        // Initialize OpenAI client
+        const openai = new OpenAI({ apiKey });
 
         // Get FormData from request
         const formData = await request.formData();
@@ -33,45 +37,38 @@ export async function POST(request: NextRequest) {
 
         // Convert file to base64
         const arrayBuffer = await imageFile.arrayBuffer();
-        const bytes = new Uint8Array(arrayBuffer);
-        let binary = '';
-        for (let i = 0; i < bytes.length; i++) {
-            binary += String.fromCharCode(bytes[i]);
-        }
-        const base64Image = Buffer.from(binary, 'binary').toString('base64');
+        const base64Image = Buffer.from(arrayBuffer).toString('base64');
         const mimeType = imageFile.type || 'image/jpeg';
+        const dataUrl = `data:${mimeType};base64,${base64Image}`;
 
         console.log(`[OCR API] Image converted to base64, MIME: ${mimeType}`);
+        console.log('[OCR API] Sending request to OpenAI SDK...');
 
-        // Build OpenAI request
-        const requestBody = buildOpenAIRequestBody(base64Image, mimeType);
-
-        console.log('[OCR API] Sending request to OpenAI...');
-
-        // Call OpenAI API
-        const response = await fetch(OPENAI_CONFIG.endpoint, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`,
-            },
-            body: JSON.stringify(requestBody),
+        // Call OpenAI API using SDK
+        const response = await openai.chat.completions.create({
+            model: OPENAI_CONFIG.model,
+            messages: [
+                {
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: OCR_PROMPT },
+                        {
+                            type: 'image_url',
+                            image_url: {
+                                url: dataUrl,
+                                detail: 'high'
+                            }
+                        },
+                    ],
+                },
+            ],
+            max_tokens: OPENAI_CONFIG.maxTokens,
         });
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`[OCR API] OpenAI error: ${response.status} - ${errorText}`);
-            return NextResponse.json(
-                { error: `OpenAI API error: ${response.status}` },
-                { status: response.status }
-            );
-        }
-
-        const openaiResponse = await response.json();
         console.log('[OCR API] OpenAI response received');
 
         // Parse the response to extract person data
-        const parsedData = parseOCRResponse(openaiResponse);
+        const parsedData = parseOCRResponseFromSDK(response);
 
         if (!parsedData || parsedData.length === 0) {
             console.error('[OCR API] Failed to parse response');
@@ -80,7 +77,6 @@ export async function POST(request: NextRequest) {
                     error: '0',
                     data: [],
                     Message: 'Không thể đọc dữ liệu từ ảnh',
-                    raw: openaiResponse
                 },
                 { status: 200 }
             );
@@ -97,6 +93,15 @@ export async function POST(request: NextRequest) {
 
     } catch (error) {
         console.error('[OCR API] Error:', error);
+
+        // Handle OpenAI specific errors
+        if (error instanceof OpenAI.APIError) {
+            return NextResponse.json(
+                { error: `OpenAI API error: ${error.status} - ${error.message}` },
+                { status: error.status || 500 }
+            );
+        }
+
         return NextResponse.json(
             { error: error instanceof Error ? error.message : 'Proxy error' },
             { status: 500 }

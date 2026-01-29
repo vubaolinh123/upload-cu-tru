@@ -1,13 +1,15 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { Header, Container } from './components/layout';
 import { Card, LoadingSpinner } from './components/ui';
 import { analyzeImage } from './services/imageAnalysisService';
 import { exportToPDF, printDocument } from './services/pdfExportService';
-import { baseDocumentData } from './data/fakeData';
-import type { PersonInfo, UploadedImage, AppStep, ResidenceDocument } from './types/residence';
+import { exportHouseholdToExcel } from './services/excelExportService';
+import { groupByHousehold } from './lib/householdGrouper';
+import type { PersonInfo, UploadedImage, AppStep } from './types/residence';
+import type { Household, HouseholdGroupResult } from './types/household';
 
 // Dynamic imports for code splitting
 const ImageUploader = dynamic(
@@ -50,11 +52,28 @@ export default function Home() {
   const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Combined document data
-  const documentData: ResidenceDocument = {
-    ...baseDocumentData,
-    danhSachNhanKhau: accumulatedPersons,
-  };
+  // Household selection state
+  const [selectedHouseholdId, setSelectedHouseholdId] = useState<string | null>(null);
+
+  // Group persons by household
+  const householdResult: HouseholdGroupResult = useMemo(() => {
+    return groupByHousehold(accumulatedPersons);
+  }, [accumulatedPersons]);
+
+  // Get selected household
+  const selectedHousehold: Household | null = useMemo(() => {
+    if (!selectedHouseholdId && householdResult.households.length > 0) {
+      return householdResult.households[0];
+    }
+    return householdResult.households.find(h => h.id === selectedHouseholdId) || null;
+  }, [selectedHouseholdId, householdResult.households]);
+
+  // Auto-select first household when data changes
+  React.useEffect(() => {
+    if (householdResult.households.length > 0 && !selectedHouseholdId) {
+      setSelectedHouseholdId(householdResult.households[0].id);
+    }
+  }, [householdResult.households, selectedHouseholdId]);
 
   // Handlers
   const handleImageSelect = useCallback((file: File, preview: string) => {
@@ -87,19 +106,16 @@ export default function Home() {
           extractedData: result.data,
         };
 
-        // Update STT for new data based on existing count
-        const updatedData = result.data.map((person, idx) => ({
-          ...person,
-          stt: accumulatedPersons.length + idx + 1,
-        }));
-
-        // Add to accumulated data
+        // Add to accumulated data (STT is already set from API)
         setUploadedImages((prev) => [...prev, newUploadedImage]);
-        setAccumulatedPersons((prev) => [...prev, ...updatedData]);
+        setAccumulatedPersons((prev) => [...prev, ...(result.data || [])]);
 
         // Clear current upload state
         setCurrentFile(null);
         setCurrentPreview(null);
+
+        // Reset household selection to trigger auto-select
+        setSelectedHouseholdId(null);
 
         // Move to preview
         setCurrentStep('preview');
@@ -111,14 +127,14 @@ export default function Home() {
       setError(err instanceof Error ? err.message : 'Có lỗi xảy ra');
       setCurrentStep('upload');
     }
-  }, [currentFile, currentPreview, uploadedImages.length, accumulatedPersons.length]);
+  }, [currentFile, currentPreview, uploadedImages.length]);
 
   const handleContinueUpload = useCallback(() => {
     setCurrentStep('upload');
   }, []);
 
   const handleExportPDF = useCallback(async () => {
-    if (isExporting) return; // Prevent multiple clicks
+    if (isExporting) return;
 
     setIsExporting(true);
     try {
@@ -126,7 +142,6 @@ export default function Home() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Có lỗi khi xuất PDF');
     } finally {
-      // Add small delay before allowing another export
       setTimeout(() => {
         setIsExporting(false);
       }, 500);
@@ -141,6 +156,15 @@ export default function Home() {
     }
   }, []);
 
+  const handleExportExcel = useCallback(async () => {
+    if (!selectedHousehold) return;
+    try {
+      await exportHouseholdToExcel(selectedHousehold);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Có lỗi khi xuất Excel');
+    }
+  }, [selectedHousehold]);
+
   const handleReset = useCallback(() => {
     setUploadedImages([]);
     setAccumulatedPersons([]);
@@ -148,6 +172,7 @@ export default function Home() {
     setCurrentPreview(null);
     setCurrentStep('upload');
     setError(null);
+    setSelectedHouseholdId(null);
   }, []);
 
   return (
@@ -197,7 +222,7 @@ export default function Home() {
             {/* Upload count badge */}
             {uploadedImages.length > 0 && (
               <div className="ml-2 px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
-                {uploadedImages.length} ảnh • {accumulatedPersons.length} người
+                {uploadedImages.length} ảnh • {householdResult.households.length} hộ
               </div>
             )}
           </div>
@@ -260,8 +285,35 @@ export default function Home() {
             )}
 
             {/* Preview Step - Show Document */}
-            {currentStep === 'preview' && accumulatedPersons.length > 0 && (
+            {currentStep === 'preview' && householdResult.households.length > 0 && selectedHousehold && (
               <div className="flex-1 overflow-hidden flex flex-col gap-3">
+                {/* Household Tabs */}
+                {householdResult.households.length > 1 && (
+                  <div className="flex-shrink-0">
+                    <div className="flex items-center gap-2 overflow-x-auto pb-2">
+                      <span className="text-sm text-gray-500 flex-shrink-0">Chọn hộ:</span>
+                      {householdResult.households.map((household, idx) => (
+                        <button
+                          key={household.id}
+                          onClick={() => setSelectedHouseholdId(household.id)}
+                          className={`
+                            px-3 py-2 rounded-lg text-sm font-medium transition-all flex-shrink-0
+                            ${selectedHouseholdId === household.id
+                              ? 'bg-blue-600 text-white shadow-md'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }
+                          `}
+                        >
+                          <div className="flex flex-col items-start">
+                            <span>Hộ {idx + 1}: {household.chuHo.hoTen}</span>
+                            <span className="text-xs opacity-75">{household.allPersons.length} người</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Two column layout */}
                 <div className="flex-1 overflow-hidden grid grid-cols-1 xl:grid-cols-4 gap-3">
                   {/* Uploaded Images List - Compact sidebar */}
@@ -291,10 +343,10 @@ export default function Home() {
                   {/* Document Preview - Main area */}
                   <div className="xl:col-span-3 overflow-hidden flex flex-col">
                     <h3 className="text-sm font-semibold mb-2 text-gray-700 flex-shrink-0">
-                      Biên bản kiểm tra cư trú
+                      Biên bản kiểm tra cư trú - {selectedHousehold.chuHo.hoTen}
                     </h3>
                     <div className="flex-1 overflow-hidden">
-                      <DocumentPreview data={documentData} accumulatedPersons={accumulatedPersons} />
+                      <DocumentPreview household={selectedHousehold} />
                     </div>
                   </div>
                 </div>
@@ -303,6 +355,7 @@ export default function Home() {
                 <div className="flex-shrink-0">
                   <ExportButtons
                     onExportPDF={handleExportPDF}
+                    onExportExcel={handleExportExcel}
                     onPrint={handlePrint}
                     isExporting={isExporting}
                     onContinueUpload={handleContinueUpload}
@@ -316,9 +369,9 @@ export default function Home() {
       </main>
 
       {/* Hidden document for PDF/Print export */}
-      {accumulatedPersons.length > 0 && (
+      {selectedHousehold && (
         <div className="hidden print:block">
-          <ResidenceReportTemplate data={documentData} accumulatedPersons={accumulatedPersons} />
+          <ResidenceReportTemplate household={selectedHousehold} />
         </div>
       )}
     </div>

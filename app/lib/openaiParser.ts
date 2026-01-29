@@ -1,4 +1,5 @@
 import { OCRPersonResponse } from '../types/apiTypes';
+import type { ChatCompletion } from 'openai/resources/chat/completions';
 
 /**
  * Parse result type
@@ -81,7 +82,27 @@ function fixJsonString(str: string): string {
 }
 
 /**
- * Extract text content from OpenAI response
+ * Parse OpenAI SDK ChatCompletion response
+ * This is the new function for SDK format
+ */
+export function parseOCRResponseFromSDK(response: ChatCompletion): OCRPersonResponse[] | null {
+    // SDK response format: response.choices[0].message.content
+    const content = response.choices?.[0]?.message?.content;
+    if (!content) return null;
+
+    const result = safeParse(content);
+    if (!result) return null;
+
+    if (result.type === 'arr' && Array.isArray(result.output)) {
+        return result.output as OCRPersonResponse[];
+    }
+
+    return null;
+}
+
+/**
+ * Extract text content from OpenAI REST API response (legacy)
+ * @deprecated Use parseOCRResponseFromSDK instead
  */
 export function extractTextFromResponse(response: unknown): string | null {
     if (!response || typeof response !== 'object') return null;
@@ -99,7 +120,8 @@ export function extractTextFromResponse(response: unknown): string | null {
 }
 
 /**
- * Parse OpenAI OCR response to PersonInfo array
+ * Parse OpenAI REST API response (legacy)
+ * @deprecated Use parseOCRResponseFromSDK instead
  */
 export function parseOCRResponse(response: unknown): OCRPersonResponse[] | null {
     const text = extractTextFromResponse(response);

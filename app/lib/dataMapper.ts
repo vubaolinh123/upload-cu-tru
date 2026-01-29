@@ -8,7 +8,7 @@ function cleanValue(value: string | null | undefined): string {
     if (value === null || value === undefined || value === 'null' || value === 'NULL') {
         return '';
     }
-    return value.trim();
+    return String(value).trim();
 }
 
 /**
@@ -20,7 +20,7 @@ export function mapOCRResponseToPersonInfo(
     startIndex: number = 1
 ): PersonInfo[] {
     return response.map((item, index) => ({
-        stt: startIndex + index,
+        stt: item.stt || (startIndex + index),
         hoTen: cleanValue(item.hoTen),
         soCCCD: cleanValue(item.soCCCD),
         ngaySinh: cleanValue(item.ngaySinh),
@@ -28,11 +28,9 @@ export function mapOCRResponseToPersonInfo(
         queQuan: cleanValue(item.queQuan),
         danToc: cleanValue(item.danToc) || 'Kinh',
         quocTich: cleanValue(item.quocTich) || 'Việt Nam',
-        soHSCT: cleanValue(item.soHSCT),
         quanHeVoiChuHo: cleanValue(item.quanHeVoiChuHo),
         oDauDen: cleanValue(item.oDauDen),
-        ngayDen: cleanValue(item.ngayDen),
-        diaChiThuongTru: cleanValue(item.diaChiThuongTru),
+        hoKhauThuongTru: cleanValue(item.hoKhauThuongTru),
     }));
 }
 
@@ -63,7 +61,6 @@ export function validateOCRResponse(response: unknown): response is OCRPersonRes
     return (
         typeof firstItem === 'object' &&
         firstItem !== null &&
-        'hoTen' in firstItem &&
-        'soCCCD' in firstItem
+        'hoTen' in firstItem
     );
 }

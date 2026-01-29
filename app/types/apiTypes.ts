@@ -2,8 +2,9 @@
  * API Types for OCR Service
  */
 
-// Raw person data from OCR API
+// Raw person data from OCR API (updated with new fields)
 export interface OCRPersonResponse {
+    stt: number;
     hoTen: string;
     soCCCD: string;
     ngaySinh: string;
@@ -11,14 +12,12 @@ export interface OCRPersonResponse {
     queQuan: string;
     danToc: string;
     quocTich: string;
-    soHSCT: string | null;
     quanHeVoiChuHo: string;
     oDauDen: string;
-    ngayDen: string;
-    diaChiThuongTru: string;
+    hoKhauThuongTru: string; // New field - Hộ khẩu thường trú
 }
 
-// Actual API response wrapper
+// Actual API response wrapper from OpenAI (after parsing)
 export interface OCRAPIResponse {
     error: string; // "0" = success
     data: OCRPersonResponse[];
