@@ -112,7 +112,7 @@ export default function ResidenceReportTemplate({ household, headerInfo = {} }: 
             {/* Officers - Fixed name: Võ Văn Giáp */}
             <p style={{ margin: '8px 0' }}>Chúng tôi gồm:</p>
             <p style={{ margin: '4px 0', paddingLeft: '15px' }}>
-                1/ Ông: <span style={{ fontWeight: 500 }}>{FIXED_OFFICER_NAME}</span> ; Chức vụ: <Dots count={20} />
+                1/ Ông: <span style={{ fontWeight: 500 }}>{FIXED_OFFICER_NAME}</span> ; Chức vụ: <span style={{ fontWeight: 500 }}>Cán bộ CSKV</span>
             </p>
             <p style={{ margin: '4px 0', paddingLeft: '15px' }}>
                 2/ Ông: <Dots count={30} /> ; Chức vụ: <Dots count={25} />
@@ -124,15 +124,15 @@ export default function ResidenceReportTemplate({ household, headerInfo = {} }: 
                 Họ tên: <Dots count={30} />; sinh ngày: <Dots count={8} />/<Dots count={8} />/<Dots count={8} />
             </p>
 
-            {/* Household info - Format: Ngày sinh; Họ tên Chủ hộ */}
+            {/* Household info - Format theo ảnh mẫu */}
             <p style={{ margin: '10px 0' }}>
                 Tiến hành lập biên bản kiểm tra cư trú tại căn nhà địa chỉ trên do ông bà:
             </p>
             <p style={{ margin: '4px 0', paddingLeft: '15px' }}>
-                Họ và tên: <Field value={chuHo.ngaySinh} dotCount={15} />; <Field value={chuHo.hoTen} dotCount={30} />
+                Họ và tên: <Field value={chuHo.hoTen} dotCount={40} />; Sinh ngày: <Field value={chuHo.ngaySinh} dotCount={15} />
             </p>
             <p style={{ margin: '4px 0', paddingLeft: '15px' }}>
-                CCCD Chủ hộ: <Field value={chuHo.soCCCD} dotCount={20} />
+                Số CCCD: <Field value={chuHo.soCCCD} dotCount={30} /> là <Dots count={30} />
             </p>
 
             {/* Inspection Results Header */}

@@ -5,7 +5,7 @@
 
 export const OPENAI_CONFIG = {
     model: 'gpt-4o',
-    maxTokens: 70000,
+    maxTokens: 16384, // Model max limit
 };
 
 /**
