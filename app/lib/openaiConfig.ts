@@ -4,8 +4,8 @@
  */
 
 export const OPENAI_CONFIG = {
-    model: 'gpt-4o',
-    maxTokens: 16384, // Model max limit
+  model: 'gpt-4o',
+  maxTokens: 16384, // Model max limit
 };
 
 /**
@@ -21,6 +21,13 @@ Hãy:
 4. Nếu trường nào không có dữ liệu thì gán null.
 5. Trả kết quả HOÀN TOÀN BẰNG TIẾNG VIỆT.
 6. Trả về đúng định dạng JSON dưới đây, không thêm giải thích.
+
+QUAN TRỌNG - THỨ TỰ ĐỌC:
+- Đọc từ TRÁI SANG PHẢI, từ TRÊN XUỐNG DƯỚI trong mỗi ô
+- Nếu một ô có nhiều dòng (tên dài bị xuống hàng), ghép DÒNG TRÊN TRƯỚC rồi đến DÒNG DƯỚI
+- Ví dụ: Nếu trong ô tên thấy "Nguyễn Đức" ở dòng 1 và "Bình" ở dòng 2 → Họ tên đầy đủ là "Nguyễn Đức Bình"
+- KHÔNG đọc ngược: "Bình Nguyễn Đức" là SAI
+- Họ luôn đứng trước, tên đứng sau (theo thứ tự tiếng Việt)
 
 QUAN TRỌNG - Đọc đúng các cột trong ảnh:
 - "stt": Số thứ tự trong ảnh

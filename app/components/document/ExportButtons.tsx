@@ -7,7 +7,9 @@ interface ExportButtonsProps {
     onExportPDF: () => void;
     onExportExcel: () => void;
     onPrint: () => void;
+    onSaveData?: () => void;
     isExporting?: boolean;
+    isSaving?: boolean;
     onContinueUpload: () => void;
     uploadCount: number;
 }
@@ -16,7 +18,9 @@ export default function ExportButtons({
     onExportPDF,
     onExportExcel,
     onPrint,
+    onSaveData,
     isExporting = false,
+    isSaving = false,
     onContinueUpload,
     uploadCount,
 }: ExportButtonsProps) {
@@ -37,7 +41,7 @@ export default function ExportButtons({
                     variant="primary"
                     size="md"
                     onClick={onContinueUpload}
-                    disabled={isExporting}
+                    disabled={isExporting || isSaving}
                     leftIcon={
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -51,12 +55,32 @@ export default function ExportButtons({
                 {/* Divider */}
                 <div className="hidden sm:block w-px h-8 bg-gray-300" />
 
+                {/* Save Data Button - NEW */}
+                {onSaveData && (
+                    <Button
+                        variant="primary"
+                        size="md"
+                        onClick={onSaveData}
+                        isLoading={isSaving}
+                        disabled={isExporting || isSaving}
+                        leftIcon={
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                            </svg>
+                        }
+                        className="w-full sm:w-auto bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800"
+                    >
+                        Lưu Dữ Liệu
+                    </Button>
+                )}
+
                 {/* Export PDF Button */}
                 <Button
                     variant="outline"
                     size="md"
                     onClick={onExportPDF}
                     isLoading={isExporting}
+                    disabled={isSaving}
                     leftIcon={
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -72,7 +96,7 @@ export default function ExportButtons({
                     variant="outline"
                     size="md"
                     onClick={onExportExcel}
-                    disabled={isExporting}
+                    disabled={isExporting || isSaving}
                     leftIcon={
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -88,7 +112,7 @@ export default function ExportButtons({
                     variant="ghost"
                     size="md"
                     onClick={onPrint}
-                    disabled={isExporting}
+                    disabled={isExporting || isSaving}
                     leftIcon={
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />

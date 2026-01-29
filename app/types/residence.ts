@@ -52,7 +52,7 @@ export interface AnalysisResult {
     error?: string;
 }
 
-export type AppStep = 'upload' | 'analyzing' | 'preview' | 'export';
+export type AppStep = 'upload' | 'analyzing' | 'editing' | 'preview' | 'export';
 
 export interface UploadedImage {
     id: string;

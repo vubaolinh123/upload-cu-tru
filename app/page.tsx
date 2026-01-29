@@ -7,6 +7,7 @@ import { Card, LoadingSpinner } from './components/ui';
 import { analyzeImage } from './services/imageAnalysisService';
 import { exportToPDF, printDocument } from './services/pdfExportService';
 import { exportHouseholdToExcel } from './services/excelExportService';
+import { saveHouseholdData } from './services/dataSaveService';
 import { groupByHousehold } from './lib/householdGrouper';
 import type { PersonInfo, UploadedImage, AppStep } from './types/residence';
 import type { Household, HouseholdGroupResult } from './types/household';
@@ -37,6 +38,11 @@ const ResidenceReportTemplate = dynamic(
   { loading: () => <LoadingSpinner text="Đang tải..." /> }
 );
 
+const DataReviewTable = dynamic(
+  () => import('./components/editing/DataReviewTable'),
+  { loading: () => <LoadingSpinner text="Đang tải..." /> }
+);
+
 // Generate unique ID
 const generateId = (): string => {
   return `img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -49,8 +55,11 @@ export default function Home() {
   const [currentFile, setCurrentFile] = useState<File | null>(null);
   const [currentPreview, setCurrentPreview] = useState<string | null>(null);
   const [accumulatedPersons, setAccumulatedPersons] = useState<PersonInfo[]>([]);
+  const [pendingPersons, setPendingPersons] = useState<PersonInfo[]>([]); // NEW: Pending data for editing
   const [isExporting, setIsExporting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false); // NEW: Saving state
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null); // NEW: Success message
 
   // Household selection state
   const [selectedHouseholdId, setSelectedHouseholdId] = useState<string | null>(null);
@@ -80,6 +89,7 @@ export default function Home() {
     setCurrentFile(file);
     setCurrentPreview(preview);
     setError(null);
+    setSuccessMessage(null);
   }, []);
 
   const handleRemoveCurrentImage = useCallback(() => {
@@ -92,6 +102,7 @@ export default function Home() {
 
     setCurrentStep('analyzing');
     setError(null);
+    setSuccessMessage(null);
 
     try {
       const uploadIndex = uploadedImages.length;
@@ -106,19 +117,14 @@ export default function Home() {
           extractedData: result.data,
         };
 
-        // Add to accumulated data (STT is already set from API)
+        // Add to uploaded images
         setUploadedImages((prev) => [...prev, newUploadedImage]);
-        setAccumulatedPersons((prev) => [...prev, ...(result.data || [])]);
 
-        // Clear current upload state
-        setCurrentFile(null);
-        setCurrentPreview(null);
+        // Store pending data for editing (instead of directly to accumulatedPersons)
+        setPendingPersons(result.data);
 
-        // Reset household selection to trigger auto-select
-        setSelectedHouseholdId(null);
-
-        // Move to preview
-        setCurrentStep('preview');
+        // Move to editing step (NEW: instead of preview)
+        setCurrentStep('editing');
       } else {
         setError(result.error || 'Có lỗi xảy ra khi phân tích ảnh');
         setCurrentStep('upload');
@@ -128,6 +134,33 @@ export default function Home() {
       setCurrentStep('upload');
     }
   }, [currentFile, currentPreview, uploadedImages.length]);
+
+  // NEW: Handler for confirming edited data
+  const handleConfirmEditedData = useCallback((confirmedPersons: PersonInfo[]) => {
+    // Add confirmed data to accumulated persons
+    setAccumulatedPersons((prev) => [...prev, ...confirmedPersons]);
+
+    // Clear pending and current upload
+    setPendingPersons([]);
+    setCurrentFile(null);
+    setCurrentPreview(null);
+
+    // Reset household selection to trigger auto-select
+    setSelectedHouseholdId(null);
+
+    // Move to preview
+    setCurrentStep('preview');
+  }, []);
+
+  // NEW: Handler for canceling edit
+  const handleCancelEdit = useCallback(() => {
+    // Remove the last uploaded image since we're canceling
+    setUploadedImages((prev) => prev.slice(0, -1));
+    setPendingPersons([]);
+    setCurrentFile(null);
+    setCurrentPreview(null);
+    setCurrentStep('upload');
+  }, []);
 
   const handleContinueUpload = useCallback(() => {
     setCurrentStep('upload');
@@ -165,15 +198,50 @@ export default function Home() {
     }
   }, [selectedHousehold]);
 
+  // NEW: Handler for saving data
+  const handleSaveData = useCallback(async () => {
+    if (isSaving || householdResult.households.length === 0) return;
+
+    setIsSaving(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const result = await saveHouseholdData(householdResult.households);
+      if (result.success) {
+        setSuccessMessage(result.message);
+      } else {
+        setError(result.error || result.message);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Có lỗi khi lưu dữ liệu');
+    } finally {
+      setIsSaving(false);
+    }
+  }, [isSaving, householdResult.households]);
+
   const handleReset = useCallback(() => {
     setUploadedImages([]);
     setAccumulatedPersons([]);
+    setPendingPersons([]);
     setCurrentFile(null);
     setCurrentPreview(null);
     setCurrentStep('upload');
     setError(null);
+    setSuccessMessage(null);
     setSelectedHouseholdId(null);
   }, []);
+
+  // Calculate step completion for indicators
+  const getStepStatus = (step: string) => {
+    const stepOrder = ['upload', 'analyzing', 'editing', 'preview'];
+    const currentIndex = stepOrder.indexOf(currentStep);
+    const stepIndex = stepOrder.indexOf(step);
+
+    if (currentStep === step) return 'current';
+    if (stepIndex < currentIndex) return 'completed';
+    return 'pending';
+  };
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50">
@@ -183,11 +251,12 @@ export default function Home() {
       {/* Main Content - Fixed height with overflow */}
       <main className="flex-1 overflow-hidden py-3 sm:py-4">
         <Container className="h-full flex flex-col">
-          {/* Step Indicators - Compact */}
+          {/* Step Indicators - Updated with editing step */}
           <div className="flex items-center justify-center gap-2 mb-3 flex-shrink-0">
             {[
               { step: 'upload', label: 'Upload', icon: '📤' },
               { step: 'analyzing', label: 'Phân tích', icon: '🔍' },
+              { step: 'editing', label: 'Chỉnh sửa', icon: '✏️' },
               { step: 'preview', label: 'Xem biên bản', icon: '📄' },
             ].map(({ step, label, icon }, idx) => (
               <React.Fragment key={step}>
@@ -195,10 +264,9 @@ export default function Home() {
                   className={`
                     flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium
                     transition-all duration-300
-                    ${currentStep === step
+                    ${getStepStatus(step) === 'current'
                       ? 'bg-blue-600 text-white shadow-lg scale-105'
-                      : (currentStep === 'preview' && step !== 'preview') ||
-                        (currentStep === 'analyzing' && step === 'upload')
+                      : getStepStatus(step) === 'completed'
                         ? 'bg-green-100 text-green-700'
                         : 'bg-gray-100 text-gray-500'
                     }
@@ -207,12 +275,11 @@ export default function Home() {
                   <span>{icon}</span>
                   <span className="hidden sm:inline">{label}</span>
                 </div>
-                {idx < 2 && (
+                {idx < 3 && (
                   <div
-                    className={`w-6 sm:w-12 h-0.5 transition-colors duration-300 ${(currentStep === 'analyzing' && idx === 0) ||
-                      (currentStep === 'preview' && idx <= 1)
-                      ? 'bg-green-400'
-                      : 'bg-gray-200'
+                    className={`w-6 sm:w-12 h-0.5 transition-colors duration-300 ${getStepStatus(step) === 'completed'
+                        ? 'bg-green-400'
+                        : 'bg-gray-200'
                       }`}
                   />
                 )}
@@ -235,6 +302,21 @@ export default function Home() {
               </svg>
               <p className="flex-1">{error}</p>
               <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          )}
+
+          {/* Success Message */}
+          {successMessage && (
+            <div className="mb-3 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2 text-green-600 text-sm flex-shrink-0">
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <p className="flex-1">{successMessage}</p>
+              <button onClick={() => setSuccessMessage(null)} className="text-green-400 hover:text-green-600">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -281,6 +363,17 @@ export default function Home() {
             {currentStep === 'analyzing' && !currentPreview && (
               <div className="flex-1 flex items-center justify-center">
                 <LoadingSpinner size="xl" text="Đang phân tích ảnh..." />
+              </div>
+            )}
+
+            {/* NEW: Editing Step - Show Data Review Table */}
+            {currentStep === 'editing' && pendingPersons.length > 0 && (
+              <div className="flex-1 overflow-hidden">
+                <DataReviewTable
+                  persons={pendingPersons}
+                  onConfirmAll={handleConfirmEditedData}
+                  onCancel={handleCancelEdit}
+                />
               </div>
             )}
 
@@ -357,7 +450,9 @@ export default function Home() {
                     onExportPDF={handleExportPDF}
                     onExportExcel={handleExportExcel}
                     onPrint={handlePrint}
+                    onSaveData={handleSaveData}
                     isExporting={isExporting}
+                    isSaving={isSaving}
                     onContinueUpload={handleContinueUpload}
                     uploadCount={uploadedImages.length}
                   />
