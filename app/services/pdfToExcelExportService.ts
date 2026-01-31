@@ -1,53 +1,66 @@
 import ExcelJS from 'exceljs';
-import { PdfTextData } from '../types/pdfTypes';
+import { CT3ARecord } from '../types/pdfTypes';
 
 /**
  * PDF to Excel Export Service
- * Exports extracted PDF text data to Excel format
- * Option A: Raw text - each page = 1 row in Excel
+ * Xuất dữ liệu CT3A từ PDF sang Excel với format đẹp
  */
 
-// Column configuration
+// Column configuration matching CT3A table
 const COLUMNS: Partial<ExcelJS.Column>[] = [
-    { header: 'STT', key: 'stt', width: 8 },
-    { header: 'Trang', key: 'page', width: 10 },
-    { header: 'Nội dung', key: 'content', width: 100 },
+    { header: 'STT', key: 'stt', width: 6 },
+    { header: 'Họ và tên', key: 'hoTen', width: 20 },
+    { header: 'Số ĐDCN/CCCD', key: 'soDDCN_CCCD', width: 16 },
+    { header: 'Ngày sinh', key: 'ngaySinh', width: 12 },
+    { header: 'Giới tính', key: 'gioiTinh', width: 10 },
+    { header: 'Quê quán', key: 'queQuan', width: 25 },
+    { header: 'Dân tộc', key: 'danToc', width: 10 },
+    { header: 'Quốc tịch', key: 'quocTich', width: 10 },
+    { header: 'Số HSCT', key: 'soHSCT', width: 14 },
+    { header: 'Quan hệ với chủ hộ', key: 'quanHeVoiChuHo', width: 16 },
+    { header: 'Ở đâu đến', key: 'oDauDen', width: 35 },
+    { header: 'Ngày đến', key: 'ngayDen', width: 12 },
+    { header: 'Địa chỉ thường trú', key: 'diaChiThuongTru', width: 40 },
 ];
 
 // Colors
-const HEADER_BG_COLOR = '2563EB'; // Blue-600
+const HEADER_BG_COLOR = '1E40AF'; // Blue-800
 const HEADER_TEXT_COLOR = 'FFFFFF';
-const ALTERNATE_ROW_COLOR = 'F3F4F6'; // Gray-100
-const BORDER_COLOR = '000000';
+const ALTERNATE_ROW_COLOR = 'EFF6FF'; // Blue-50
+const BORDER_COLOR = '94A3B8'; // Slate-400
 
 /**
- * Export PDF text data to Excel file and download
+ * Export CT3A records to Excel file and download
  */
-export async function exportPdfToExcel(pdfData: PdfTextData): Promise<void> {
+export async function exportCT3AToExcel(
+    records: CT3ARecord[],
+    fileName: string
+): Promise<void> {
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'PDF to Excel Converter';
     workbook.created = new Date();
 
     // Create worksheet
-    const worksheet = workbook.addWorksheet('Nội dung PDF', {
+    const worksheet = workbook.addWorksheet('CT3A Data', {
         pageSetup: {
             orientation: 'landscape',
             fitToPage: true,
+            paperSize: 9, // A4
         },
     });
 
     // Add title row
-    const titleRow = worksheet.addRow([`NỘI DUNG TRÍCH XUẤT TỪ: ${pdfData.fileName.toUpperCase()}`]);
-    titleRow.font = { bold: true, size: 14 };
+    const titleRow = worksheet.addRow([`DỮ LIỆU TRÍCH XUẤT TỪ: ${fileName.toUpperCase()}`]);
+    titleRow.font = { bold: true, size: 16, color: { argb: HEADER_BG_COLOR } };
     worksheet.mergeCells(1, 1, 1, COLUMNS.length);
-    titleRow.alignment = { horizontal: 'center' };
-    titleRow.height = 25;
+    titleRow.alignment = { horizontal: 'center', vertical: 'middle' };
+    titleRow.height = 30;
 
     // Add subtitle with metadata
     const subtitleRow = worksheet.addRow([
-        `Tổng số trang: ${pdfData.totalPages} | Trích xuất lúc: ${pdfData.extractedAt.toLocaleString('vi-VN')}`
+        `Tổng số bản ghi: ${records.length} | Xuất lúc: ${new Date().toLocaleString('vi-VN')}`
     ]);
-    subtitleRow.font = { italic: true, size: 11 };
+    subtitleRow.font = { italic: true, size: 11, color: { argb: '6B7280' } };
     worksheet.mergeCells(2, 1, 2, COLUMNS.length);
     subtitleRow.alignment = { horizontal: 'center' };
 
@@ -61,12 +74,22 @@ export async function exportPdfToExcel(pdfData: PdfTextData): Promise<void> {
     const headerRow = worksheet.addRow(COLUMNS.map(col => col.header));
     styleHeaderRow(headerRow);
 
-    // Add data rows - each page = 1 row
-    pdfData.pages.forEach((page, index) => {
+    // Add data rows
+    records.forEach((record, index) => {
         const row = worksheet.addRow([
-            index + 1,
-            `Trang ${page.pageNumber}`,
-            page.text,
+            record.stt || index + 1,
+            record.hoTen || '',
+            record.soDDCN_CCCD || '',
+            record.ngaySinh || '',
+            record.gioiTinh || '',
+            record.queQuan || '',
+            record.danToc || '',
+            record.quocTich || '',
+            record.soHSCT || '',
+            record.quanHeVoiChuHo || '',
+            record.oDauDen || '',
+            record.ngayDen || '',
+            record.diaChiThuongTru || '',
         ]);
         styleDataRow(row, index);
     });
@@ -85,16 +108,21 @@ export async function exportPdfToExcel(pdfData: PdfTextData): Promise<void> {
         });
     }
 
+    // Freeze header row
+    worksheet.views = [
+        { state: 'frozen', ySplit: 4 }
+    ];
+
     // Generate file and download
     const buffer = await workbook.xlsx.writeBuffer();
-    downloadBlob(buffer, `pdf-extract-${sanitizeFileName(pdfData.fileName)}.xlsx`);
+    downloadBlob(buffer, `ct3a-${sanitizeFileName(fileName)}.xlsx`);
 }
 
 /**
  * Style header row
  */
 function styleHeaderRow(row: ExcelJS.Row): void {
-    row.height = 22;
+    row.height = 28;
     row.eachCell((cell) => {
         cell.fill = {
             type: 'pattern',
@@ -118,8 +146,8 @@ function styleHeaderRow(row: ExcelJS.Row): void {
  * Style data row with alternating colors
  */
 function styleDataRow(row: ExcelJS.Row, index: number): void {
-    row.height = 60; // Taller rows for text content
-    row.eachCell((cell) => {
+    row.height = 24;
+    row.eachCell((cell, colNumber) => {
         // Alternate row color
         if (index % 2 === 1) {
             cell.fill = {
@@ -129,15 +157,16 @@ function styleDataRow(row: ExcelJS.Row, index: number): void {
             };
         }
         cell.alignment = {
-            vertical: 'top',
+            vertical: 'middle',
             wrapText: true,
         };
         cell.font = { size: 10 };
-    });
 
-    // Center align STT and Page columns
-    row.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
-    row.getCell(2).alignment = { horizontal: 'center', vertical: 'middle' };
+        // Center align specific columns
+        if ([1, 4, 5, 7, 8, 10, 12].includes(colNumber)) {
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        }
+    });
 }
 
 /**

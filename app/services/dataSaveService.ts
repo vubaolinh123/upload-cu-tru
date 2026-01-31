@@ -1,4 +1,5 @@
 import { Household } from '../types/household';
+import { PersonInfo } from '../types/residence';
 
 export interface SaveResult {
     success: boolean;
@@ -7,29 +8,85 @@ export interface SaveResult {
 }
 
 /**
- * Save household data to API
- * TODO: Implement real API call when backend is ready
+ * API Request types
+ */
+interface ApiHousehold {
+    chuHo: PersonInfo;
+    members: PersonInfo[];
+    totalPersons: number;
+}
+
+interface ApiPayload {
+    households: ApiHousehold[];
+    metadata: {
+        uploadedAt: string;
+        totalHouseholds: number;
+        totalPersons: number;
+        source: string;
+    };
+}
+
+/**
+ * Map frontend Household to API format
+ */
+function mapHouseholdsToApiFormat(households: Household[]): ApiPayload {
+    const totalPersons = households.reduce((sum, h) => sum + h.allPersons.length, 0);
+
+    return {
+        households: households.map((h) => ({
+            chuHo: h.chuHo,
+            members: h.members,
+            totalPersons: h.allPersons.length,
+        })),
+        metadata: {
+            uploadedAt: new Date().toISOString(),
+            totalHouseholds: households.length,
+            totalPersons,
+            source: 'ocr-upload',
+        },
+    };
+}
+
+/**
+ * Save household data via proxy API
  */
 export async function saveHouseholdData(households: Household[]): Promise<SaveResult> {
     try {
-        console.log('[Save Service] Saving data...', households);
+        console.log('[Save Service] Preparing data for API...');
 
-        // TODO: Replace with real API call
-        // const response = await fetch('/api/save', {
-        //     method: 'POST',
-        //     headers: { 'Content-Type': 'application/json' },
-        //     body: JSON.stringify({ households }),
-        // });
+        // Map data to API format
+        const apiPayload = mapHouseholdsToApiFormat(households);
 
-        // Simulate API delay
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        console.log('[Save Service] Sending via proxy:', JSON.stringify(apiPayload, null, 2));
 
-        // Placeholder success response
-        console.log('[Save Service] Data saved successfully (placeholder)');
+        // Call proxy API instead of external API
+        const response = await fetch('/api/save-data', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(apiPayload),
+        });
+
+        // Parse response
+        const responseData = await response.json();
+
+        if (!response.ok || !responseData.success) {
+            console.error('[Save Service] API Error:', response.status, responseData);
+            return {
+                success: false,
+                message: 'Lưu dữ liệu thất bại',
+                error: responseData?.message || `HTTP ${response.status}`,
+            };
+        }
+
+        console.log('[Save Service] API Response:', responseData);
+
+        const totalPersons = households.reduce((sum, h) => sum + h.allPersons.length, 0);
 
         return {
             success: true,
-            message: `Đã lưu ${households.length} hộ gia đình (${households.reduce((sum, h) => sum + h.allPersons.length, 0)} người)`,
+            message: `Đã lưu thành công ${households.length} hộ gia đình (${totalPersons} người)`,
         };
     } catch (error) {
         console.error('[Save Service] Error saving data:', error);

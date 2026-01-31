@@ -278,8 +278,8 @@ export default function Home() {
                 {idx < 3 && (
                   <div
                     className={`w-6 sm:w-12 h-0.5 transition-colors duration-300 ${getStepStatus(step) === 'completed'
-                        ? 'bg-green-400'
-                        : 'bg-gray-200'
+                      ? 'bg-green-400'
+                      : 'bg-gray-200'
                       }`}
                   />
                 )}

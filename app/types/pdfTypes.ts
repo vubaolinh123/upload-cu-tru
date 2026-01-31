@@ -1,40 +1,46 @@
-// Types for PDF Text Extraction Feature
+// Types for PDF to Excel Feature with OpenAI Vision
 
 /**
- * Data structure for extracted text from a single PDF page
+ * Record từ bảng CT3A trong PDF
  */
-export interface PdfPageData {
+export interface CT3ARecord {
+    stt: number;
+    hoTen: string | null;
+    soDDCN_CCCD: string | null;
+    ngaySinh: string | null;
+    gioiTinh: string | null;
+    queQuan: string | null;
+    danToc: string | null;
+    quocTich: string | null;
+    soHSCT: string | null;
+    quanHeVoiChuHo: string | null;
+    oDauDen: string | null;
+    ngayDen: string | null;
+    diaChiThuongTru: string | null;
+}
+
+/**
+ * Kết quả extract từ một trang PDF
+ */
+export interface PdfPageResult {
     pageNumber: number;
-    text: string;
+    records: CT3ARecord[];
+    error?: string;
 }
 
 /**
- * Data structure for complete PDF extraction result
- */
-export interface PdfTextData {
-    fileName: string;
-    totalPages: number;
-    pages: PdfPageData[];
-    extractedAt: Date;
-}
-
-/**
- * Result wrapper for PDF extraction operations
+ * Kết quả extract từ toàn bộ PDF
  */
 export interface PdfExtractionResult {
     success: boolean;
-    data: PdfTextData | null;
+    fileName: string;
+    totalPages: number;
+    pages: PdfPageResult[];
+    allRecords: CT3ARecord[];
     error?: string;
 }
 
 /**
- * Upload state for PDF files
+ * Progress callback
  */
-export interface UploadedPdf {
-    id: string;
-    file: File;
-    fileName: string;
-    extractedData: PdfTextData | null;
-    isProcessing: boolean;
-    error?: string;
-}
+export type PdfProgressCallback = (message: string, progress?: number) => void;

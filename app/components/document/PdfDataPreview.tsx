@@ -1,33 +1,28 @@
 'use client';
 
 import React, { useState } from 'react';
-import { PdfTextData } from '../../types/pdfTypes';
-import { exportPdfToExcel } from '../../services/pdfToExcelExportService';
+import { CT3ARecord } from '../../types/pdfTypes';
+import { exportCT3AToExcel } from '../../services/pdfToExcelExportService';
 
-interface PdfDataPreviewProps {
-    data: PdfTextData;
+interface CT3ADataPreviewProps {
+    records: CT3ARecord[];
+    fileName: string;
+    totalPages: number;
     onReset: () => void;
 }
 
-export default function PdfDataPreview({ data, onReset }: PdfDataPreviewProps) {
-    const [editedPages, setEditedPages] = useState(data.pages);
+export default function CT3ADataPreview({
+    records,
+    fileName,
+    totalPages,
+    onReset
+}: CT3ADataPreviewProps) {
     const [isExporting, setIsExporting] = useState(false);
-    const [expandedPage, setExpandedPage] = useState<number | null>(null);
-
-    const handleTextChange = (pageIndex: number, newText: string) => {
-        const updated = [...editedPages];
-        updated[pageIndex] = { ...updated[pageIndex], text: newText };
-        setEditedPages(updated);
-    };
 
     const handleExport = async () => {
         setIsExporting(true);
         try {
-            const exportData: PdfTextData = {
-                ...data,
-                pages: editedPages,
-            };
-            await exportPdfToExcel(exportData);
+            await exportCT3AToExcel(records, fileName);
         } catch (error) {
             console.error('Export error:', error);
             alert('Lỗi khi xuất Excel. Vui lòng thử lại.');
@@ -36,17 +31,13 @@ export default function PdfDataPreview({ data, onReset }: PdfDataPreviewProps) {
         }
     };
 
-    const toggleExpand = (pageNumber: number) => {
-        setExpandedPage(expandedPage === pageNumber ? null : pageNumber);
-    };
-
     return (
-        <div className="pdf-preview">
+        <div className="ct3a-preview">
             {/* Header */}
             <div className="preview-header">
                 <div className="file-info">
-                    <h3>{data.fileName}</h3>
-                    <span className="page-count">{data.totalPages} trang</span>
+                    <h3>{fileName}</h3>
+                    <span className="stats">{totalPages} trang • {records.length} bản ghi</span>
                 </div>
                 <div className="actions">
                     <button className="btn-reset" onClick={onReset}>
@@ -61,7 +52,7 @@ export default function PdfDataPreview({ data, onReset }: PdfDataPreviewProps) {
                     <button
                         className="btn-export"
                         onClick={handleExport}
-                        disabled={isExporting}
+                        disabled={isExporting || records.length === 0}
                     >
                         {isExporting ? (
                             <>
@@ -82,60 +73,51 @@ export default function PdfDataPreview({ data, onReset }: PdfDataPreviewProps) {
                 </div>
             </div>
 
-            {/* Pages list */}
-            <div className="pages-list">
-                {editedPages.map((page, index) => (
-                    <div key={page.pageNumber} className="page-item">
-                        <div
-                            className="page-header"
-                            onClick={() => toggleExpand(page.pageNumber)}
-                        >
-                            <div className="page-title">
-                                <span className="page-number">Trang {page.pageNumber}</span>
-                                <span className="char-count">
-                                    {page.text.length} ký tự
-                                </span>
-                            </div>
-                            <svg
-                                className={`expand-icon ${expandedPage === page.pageNumber ? 'expanded' : ''}`}
-                                xmlns="http://www.w3.org/2000/svg"
-                                width="20"
-                                height="20"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                            >
-                                <polyline points="6 9 12 15 18 9"></polyline>
-                            </svg>
-                        </div>
-
-                        {expandedPage === page.pageNumber && (
-                            <div className="page-content">
-                                <textarea
-                                    value={page.text}
-                                    onChange={(e) => handleTextChange(index, e.target.value)}
-                                    placeholder="Không có nội dung"
-                                    rows={10}
-                                />
-                            </div>
-                        )}
-
-                        {expandedPage !== page.pageNumber && (
-                            <div className="page-preview">
-                                {page.text.slice(0, 200)}
-                                {page.text.length > 200 && '...'}
-                            </div>
-                        )}
+            {/* Data Table */}
+            <div className="table-container">
+                {records.length === 0 ? (
+                    <div className="empty-state">
+                        <p>Không tìm thấy dữ liệu trong PDF</p>
                     </div>
-                ))}
+                ) : (
+                    <table className="data-table">
+                        <thead>
+                            <tr>
+                                <th>STT</th>
+                                <th>Họ và tên</th>
+                                <th>Số ĐDCN/CCCD</th>
+                                <th>Ngày sinh</th>
+                                <th>Giới tính</th>
+                                <th>Quê quán</th>
+                                <th>Quan hệ với chủ hộ</th>
+                                <th>Ngày đến</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {records.map((record, index) => (
+                                <tr key={index}>
+                                    <td className="center">{record.stt || index + 1}</td>
+                                    <td>{record.hoTen || '-'}</td>
+                                    <td>{record.soDDCN_CCCD || '-'}</td>
+                                    <td className="center">{record.ngaySinh || '-'}</td>
+                                    <td className="center">{record.gioiTinh || '-'}</td>
+                                    <td>{record.queQuan || '-'}</td>
+                                    <td className="center">{record.quanHeVoiChuHo || '-'}</td>
+                                    <td className="center">{record.ngayDen || '-'}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                )}
             </div>
 
+            <p className="note">
+                * Bảng hiển thị một số cột chính. File Excel sẽ chứa đầy đủ tất cả các cột.
+            </p>
+
             <style jsx>{`
-                .pdf-preview {
+                .ct3a-preview {
                     width: 100%;
-                    max-width: 800px;
-                    margin: 0 auto;
                 }
 
                 .preview-header {
@@ -146,6 +128,8 @@ export default function PdfDataPreview({ data, onReset }: PdfDataPreviewProps) {
                     background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
                     border-radius: 12px 12px 0 0;
                     color: white;
+                    flex-wrap: wrap;
+                    gap: 12px;
                 }
 
                 .file-info h3 {
@@ -154,7 +138,7 @@ export default function PdfDataPreview({ data, onReset }: PdfDataPreviewProps) {
                     font-weight: 600;
                 }
 
-                .page-count {
+                .stats {
                     font-size: 14px;
                     opacity: 0.9;
                 }
@@ -213,90 +197,61 @@ export default function PdfDataPreview({ data, onReset }: PdfDataPreviewProps) {
                     to { transform: rotate(360deg); }
                 }
 
-                .pages-list {
+                .table-container {
                     background: white;
                     border: 1px solid #e5e7eb;
                     border-top: none;
-                    border-radius: 0 0 12px 12px;
-                    max-height: 500px;
+                    overflow-x: auto;
+                    max-height: 400px;
                     overflow-y: auto;
                 }
 
-                .page-item {
-                    border-bottom: 1px solid #e5e7eb;
+                .data-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    font-size: 13px;
                 }
 
-                .page-item:last-child {
-                    border-bottom: none;
-                }
-
-                .page-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    padding: 16px 20px;
-                    cursor: pointer;
-                    transition: background 0.2s;
-                }
-
-                .page-header:hover {
-                    background: #f9fafb;
-                }
-
-                .page-title {
-                    display: flex;
-                    align-items: center;
-                    gap: 12px;
-                }
-
-                .page-number {
+                .data-table th {
+                    background: #f1f5f9;
+                    padding: 12px 10px;
+                    text-align: left;
                     font-weight: 600;
-                    color: #1f2937;
+                    color: #334155;
+                    position: sticky;
+                    top: 0;
+                    border-bottom: 2px solid #e2e8f0;
                 }
 
-                .char-count {
+                .data-table td {
+                    padding: 10px;
+                    border-bottom: 1px solid #e5e7eb;
+                    color: #475569;
+                }
+
+                .data-table tr:hover td {
+                    background: #f8fafc;
+                }
+
+                .data-table .center {
+                    text-align: center;
+                }
+
+                .empty-state {
+                    padding: 60px 20px;
+                    text-align: center;
+                    color: #6b7280;
+                }
+
+                .note {
+                    padding: 12px 20px;
+                    background: #f8fafc;
+                    border: 1px solid #e5e7eb;
+                    border-top: none;
+                    border-radius: 0 0 12px 12px;
                     font-size: 12px;
                     color: #6b7280;
-                    background: #f3f4f6;
-                    padding: 2px 8px;
-                    border-radius: 12px;
-                }
-
-                .expand-icon {
-                    color: #6b7280;
-                    transition: transform 0.2s;
-                }
-
-                .expand-icon.expanded {
-                    transform: rotate(180deg);
-                }
-
-                .page-preview {
-                    padding: 0 20px 16px;
-                    color: #6b7280;
-                    font-size: 14px;
-                    line-height: 1.6;
-                }
-
-                .page-content {
-                    padding: 0 20px 16px;
-                }
-
-                .page-content textarea {
-                    width: 100%;
-                    padding: 12px;
-                    border: 1px solid #d1d5db;
-                    border-radius: 8px;
-                    font-size: 14px;
-                    line-height: 1.6;
-                    resize: vertical;
-                    font-family: inherit;
-                }
-
-                .page-content textarea:focus {
-                    outline: none;
-                    border-color: #2563eb;
-                    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+                    margin: 0;
                 }
             `}</style>
         </div>
