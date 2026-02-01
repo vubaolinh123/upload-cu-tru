@@ -4,18 +4,40 @@ import React, { useState } from 'react';
 import { CT3ARecord } from '../../types/pdfTypes';
 import { exportCT3AToExcel } from '../../services/pdfToExcelExportService';
 
+// All fields matching the PDF/Excel format
+const ALL_FIELDS: Array<{ key: keyof CT3ARecord; label: string }> = [
+    { key: 'hoTen', label: 'Họ và tên' },
+    { key: 'soDDCN_CCCD', label: 'Số ĐDCN/CCCD' },
+    { key: 'ngaySinh', label: 'Ngày sinh' },
+    { key: 'gioiTinh', label: 'Giới tính' },
+    { key: 'queQuan', label: 'Quê quán' },
+    { key: 'danToc', label: 'Dân tộc' },
+    { key: 'quocTich', label: 'Quốc tịch' },
+    { key: 'soHSCT', label: 'Số HSCT' },
+    { key: 'quanHeVoiChuHo', label: 'Quan hệ với chủ hộ' },
+    { key: 'oDauDen', label: 'Ở đâu đến' },
+    { key: 'ngayDen', label: 'Ngày đến' },
+    { key: 'diaChiThuongTru', label: 'Địa chỉ thường trú' },
+];
+
 interface CT3ADataPreviewProps {
     records: CT3ARecord[];
     fileName: string;
     totalPages: number;
     onReset: () => void;
+    onSaveData?: () => void;
+    onBackToEdit?: () => void;
+    isSaving?: boolean;
 }
 
 export default function CT3ADataPreview({
     records,
     fileName,
     totalPages,
-    onReset
+    onReset,
+    onSaveData,
+    onBackToEdit,
+    isSaving = false,
 }: CT3ADataPreviewProps) {
     const [isExporting, setIsExporting] = useState(false);
 
@@ -49,6 +71,37 @@ export default function CT3ADataPreview({
                         </svg>
                         Upload mới
                     </button>
+                    {onBackToEdit && (
+                        <button className="btn-back" onClick={onBackToEdit}>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+                            </svg>
+                            <span>Chỉnh sửa</span>
+                        </button>
+                    )}
+                    {onSaveData && (
+                        <button
+                            className="btn-save"
+                            onClick={onSaveData}
+                            disabled={isSaving || records.length === 0}
+                        >
+                            {isSaving ? (
+                                <>
+                                    <span className="spinner"></span>
+                                    Đang lưu...
+                                </>
+                            ) : (
+                                <>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                                        <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                                        <polyline points="7 3 7 8 15 8"></polyline>
+                                    </svg>
+                                    Lưu Dữ Liệu
+                                </>
+                            )}
+                        </button>
+                    )}
                     <button
                         className="btn-export"
                         onClick={handleExport}
@@ -83,27 +136,21 @@ export default function CT3ADataPreview({
                     <table className="data-table">
                         <thead>
                             <tr>
-                                <th>STT</th>
-                                <th>Họ và tên</th>
-                                <th>Số ĐDCN/CCCD</th>
-                                <th>Ngày sinh</th>
-                                <th>Giới tính</th>
-                                <th>Quê quán</th>
-                                <th>Quan hệ với chủ hộ</th>
-                                <th>Ngày đến</th>
+                                <th className="sticky-col">STT</th>
+                                {ALL_FIELDS.map(({ key, label }) => (
+                                    <th key={key}>{label}</th>
+                                ))}
                             </tr>
                         </thead>
                         <tbody>
                             {records.map((record, index) => (
                                 <tr key={index}>
-                                    <td className="center">{record.stt || index + 1}</td>
-                                    <td>{record.hoTen || '-'}</td>
-                                    <td>{record.soDDCN_CCCD || '-'}</td>
-                                    <td className="center">{record.ngaySinh || '-'}</td>
-                                    <td className="center">{record.gioiTinh || '-'}</td>
-                                    <td>{record.queQuan || '-'}</td>
-                                    <td className="center">{record.quanHeVoiChuHo || '-'}</td>
-                                    <td className="center">{record.ngayDen || '-'}</td>
+                                    <td className="center sticky-col">{record.stt || index + 1}</td>
+                                    {ALL_FIELDS.map(({ key }) => (
+                                        <td key={key} className={key === 'gioiTinh' || key === 'ngaySinh' || key === 'ngayDen' ? 'center' : ''}>
+                                            {String(record[key] || '-')}
+                                        </td>
+                                    ))}
                                 </tr>
                             ))}
                         </tbody>
@@ -112,12 +159,14 @@ export default function CT3ADataPreview({
             </div>
 
             <p className="note">
-                * Bảng hiển thị một số cột chính. File Excel sẽ chứa đầy đủ tất cả các cột.
+                * Cuộn ngang để xem tất cả các cột. File Excel sẽ chứa đầy đủ tất cả dữ liệu.
             </p>
 
             <style jsx>{`
                 .ct3a-preview {
-                    width: 100%;
+                    width: 90vw;
+                    max-width: 90vw;
+                    margin-left: calc(-45vw + 50%);
                 }
 
                 .preview-header {
@@ -146,9 +195,10 @@ export default function CT3ADataPreview({
                 .actions {
                     display: flex;
                     gap: 12px;
+                    flex-wrap: wrap;
                 }
 
-                .btn-reset, .btn-export {
+                .btn-reset, .btn-export, .btn-save {
                     display: flex;
                     align-items: center;
                     gap: 6px;
@@ -184,6 +234,39 @@ export default function CT3ADataPreview({
                     cursor: not-allowed;
                 }
 
+                .btn-save {
+                    background: #3b82f6;
+                    color: white;
+                }
+
+                .btn-save:hover:not(:disabled) {
+                    background: #2563eb;
+                }
+
+                .btn-save:disabled {
+                    opacity: 0.7;
+                    cursor: not-allowed;
+                }
+
+                .btn-back {
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                    padding: 10px 16px;
+                    border-radius: 8px;
+                    font-size: 14px;
+                    font-weight: 500;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    border: none;
+                    background: #f59e0b;
+                    color: white;
+                }
+
+                .btn-back:hover {
+                    background: #d97706;
+                }
+
                 .spinner {
                     width: 14px;
                     height: 14px;
@@ -202,12 +285,13 @@ export default function CT3ADataPreview({
                     border: 1px solid #e5e7eb;
                     border-top: none;
                     overflow-x: auto;
-                    max-height: 400px;
+                    max-height: 500px;
                     overflow-y: auto;
                 }
 
                 .data-table {
                     width: 100%;
+                    min-width: max-content;
                     border-collapse: collapse;
                     font-size: 13px;
                 }
@@ -221,12 +305,15 @@ export default function CT3ADataPreview({
                     position: sticky;
                     top: 0;
                     border-bottom: 2px solid #e2e8f0;
+                    white-space: nowrap;
+                    z-index: 10;
                 }
 
                 .data-table td {
                     padding: 10px;
                     border-bottom: 1px solid #e5e7eb;
                     color: #475569;
+                    white-space: nowrap;
                 }
 
                 .data-table tr:hover td {
@@ -235,6 +322,26 @@ export default function CT3ADataPreview({
 
                 .data-table .center {
                     text-align: center;
+                }
+
+                .sticky-col {
+                    position: sticky;
+                    left: 0;
+                    background: inherit;
+                    z-index: 5;
+                }
+
+                .data-table th.sticky-col {
+                    z-index: 15;
+                    background: #f1f5f9;
+                }
+
+                .data-table td.sticky-col {
+                    background: white;
+                }
+
+                .data-table tr:hover td.sticky-col {
+                    background: #f8fafc;
                 }
 
                 .empty-state {

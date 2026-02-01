@@ -20,13 +20,43 @@ export async function POST(request: NextRequest) {
             body: JSON.stringify(body),
         });
 
-        const data = await response.json();
+        // Get response text first to handle empty/non-JSON responses
+        const responseText = await response.text();
+        console.log('[Save API Proxy] Response status:', response.status);
+        console.log('[Save API Proxy] Response text:', responseText);
 
-        console.log('[Save API Proxy] Response:', data);
+        // Try to parse as JSON, handle empty or non-JSON responses
+        let data: Record<string, unknown> | null = null;
+        if (responseText && responseText.trim()) {
+            try {
+                data = JSON.parse(responseText);
+            } catch (parseError) {
+                console.warn('[Save API Proxy] Response is not JSON:', parseError);
+                // If response is not JSON but request succeeded, treat as success
+                if (response.ok) {
+                    return NextResponse.json({
+                        success: true,
+                        message: 'Dữ liệu đã được lưu thành công',
+                        rawResponse: responseText
+                    });
+                }
+            }
+        }
+
+        // Handle empty response
+        if (!data && response.ok) {
+            return NextResponse.json({
+                success: true,
+                message: 'Dữ liệu đã được lưu thành công'
+            });
+        }
 
         if (!response.ok) {
             return NextResponse.json(
-                { success: false, message: data?.message || `HTTP ${response.status}` },
+                {
+                    success: false,
+                    message: data?.message || responseText || `HTTP ${response.status}`
+                },
                 { status: response.status }
             );
         }

@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { Header, Container } from '../components/layout';
-import { Card } from '../components/ui';
+import { Card, LoadingSpinner } from '../components/ui';
 import { CT3ARecord, PdfExtractionResult } from '../types/pdfTypes';
+import { saveCT3AData } from '../services/ct3aDataSaveService';
+import { STORAGE_KEYS } from '../lib/storageKeys';
 
 // Dynamic imports for code splitting - NO SSR
 const PdfUploader = dynamic(
@@ -17,7 +19,12 @@ const CT3ADataPreview = dynamic(
     { ssr: false }
 );
 
-type PdfStep = 'upload' | 'processing' | 'preview';
+const CT3ADataReviewTable = dynamic(
+    () => import('../components/editing/CT3ADataReviewTable'),
+    { ssr: false, loading: () => <LoadingSpinner text="Đang tải..." /> }
+);
+
+type PdfStep = 'upload' | 'processing' | 'editing' | 'preview';
 
 interface ProgressState {
     message: string;
@@ -27,13 +34,24 @@ interface ProgressState {
     recordsFound: number;
 }
 
+interface PersistedPdfData {
+    records: CT3ARecord[];
+    fileName: string;
+    totalPages: number;
+    timestamp: number;
+}
+
 export default function PdfPage() {
     const [step, setStep] = useState<PdfStep>('upload');
     const [records, setRecords] = useState<CT3ARecord[]>([]);
+    const [pendingRecords, setPendingRecords] = useState<CT3ARecord[]>([]);
     const [fileName, setFileName] = useState<string>('');
     const [totalPages, setTotalPages] = useState<number>(0);
     const [error, setError] = useState<string | undefined>();
+    const [successMessage, setSuccessMessage] = useState<string | undefined>();
     const [isProcessing, setIsProcessing] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [isHydrated, setIsHydrated] = useState(false);
     const [progress, setProgress] = useState<ProgressState>({
         message: '',
         percent: 0,
@@ -41,6 +59,42 @@ export default function PdfPage() {
         totalPages: 0,
         recordsFound: 0,
     });
+
+    // Load persisted data on mount
+    useEffect(() => {
+        try {
+            const stored = localStorage.getItem(STORAGE_KEYS.PDF_UPLOAD_DATA);
+            if (stored) {
+                const data: PersistedPdfData = JSON.parse(stored);
+                if (data.records && data.records.length > 0) {
+                    setRecords(data.records);
+                    setFileName(data.fileName);
+                    setTotalPages(data.totalPages);
+                    setStep('preview');
+                }
+            }
+        } catch (err) {
+            console.warn('[PDF Page] Failed to load persisted data:', err);
+        }
+        setIsHydrated(true);
+    }, []);
+
+    // Persist data when records change
+    useEffect(() => {
+        if (!isHydrated || records.length === 0) return;
+
+        try {
+            const data: PersistedPdfData = {
+                records,
+                fileName,
+                totalPages,
+                timestamp: Date.now(),
+            };
+            localStorage.setItem(STORAGE_KEYS.PDF_UPLOAD_DATA, JSON.stringify(data));
+        } catch (err) {
+            console.warn('[PDF Page] Failed to persist data:', err);
+        }
+    }, [records, fileName, totalPages, isHydrated]);
 
     const handleFileSelect = useCallback(async (file: File) => {
         // Validate file size (5MB limit)
@@ -51,6 +105,7 @@ export default function PdfPage() {
 
         setIsProcessing(true);
         setError(undefined);
+        setSuccessMessage(undefined);
         setStep('processing');
         setProgress({
             message: 'Đang upload file PDF...',
@@ -114,10 +169,12 @@ export default function PdfPage() {
 
                                 case 'complete':
                                     const result: PdfExtractionResult = data;
-                                    setRecords(result.allRecords);
+                                    // Store pending records for editing
+                                    setPendingRecords(result.allRecords);
                                     setFileName(result.fileName);
                                     setTotalPages(result.totalPages);
-                                    setStep('preview');
+                                    // Go to editing step instead of preview
+                                    setStep('editing');
                                     break;
 
                                 case 'error':
@@ -139,11 +196,62 @@ export default function PdfPage() {
         }
     }, []);
 
+    // Handler for confirming edited data
+    const handleConfirmEditedData = useCallback((confirmedRecords: CT3ARecord[]) => {
+        setRecords(confirmedRecords);
+        setPendingRecords([]);
+        setStep('preview');
+    }, []);
+
+    // Handler for canceling edit
+    const handleCancelEdit = useCallback(() => {
+        setPendingRecords([]);
+        setStep('upload');
+    }, []);
+
+    // Handler for going back to edit from preview
+    const handleBackToEdit = useCallback(() => {
+        // Move records to pending for editing
+        setPendingRecords(records);
+        setStep('editing');
+    }, [records]);
+
+    // Handler for saving data
+    const handleSaveData = useCallback(async () => {
+        if (isSaving || records.length === 0) return;
+
+        setIsSaving(true);
+        setError(undefined);
+        setSuccessMessage(undefined);
+
+        try {
+            const result = await saveCT3AData(records, fileName);
+            if (result.success) {
+                setSuccessMessage(result.message);
+            } else {
+                setError(result.error || result.message);
+            }
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Có lỗi khi lưu dữ liệu');
+        } finally {
+            setIsSaving(false);
+        }
+    }, [isSaving, records, fileName]);
+
     const handleReset = useCallback(() => {
+        // Clear persisted data
+        try {
+            localStorage.removeItem(STORAGE_KEYS.PDF_UPLOAD_DATA);
+        } catch (err) {
+            console.warn('[PDF Page] Failed to clear persisted data:', err);
+        }
+
         setRecords([]);
+        setPendingRecords([]);
         setFileName('');
         setTotalPages(0);
         setError(undefined);
+        setSuccessMessage(undefined);
         setStep('upload');
         setProgress({
             message: '',
@@ -164,6 +272,17 @@ export default function PdfPage() {
         return `~${minutes} phút`;
     };
 
+    // Get step status for indicators
+    const getStepStatus = (stepName: string) => {
+        const stepOrder = ['upload', 'processing', 'editing', 'preview'];
+        const currentIndex = stepOrder.indexOf(step);
+        const stepIndex = stepOrder.indexOf(stepName);
+
+        if (step === stepName) return 'current';
+        if (stepIndex < currentIndex) return 'completed';
+        return 'pending';
+    };
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
             <Header />
@@ -175,8 +294,44 @@ export default function PdfPage() {
                         <p>Trích xuất bảng dữ liệu CT3A từ file PDF và xuất ra Excel</p>
                     </div>
 
+                    {/* Step Indicators */}
+                    <div className="step-indicators">
+                        {[
+                            { step: 'upload', label: 'Upload', icon: '📤' },
+                            { step: 'processing', label: 'Xử lý', icon: '⚙️' },
+                            { step: 'editing', label: 'Chỉnh sửa', icon: '✏️' },
+                            { step: 'preview', label: 'Xuất dữ liệu', icon: '📊' },
+                        ].map(({ step: stepName, label, icon }, idx) => (
+                            <React.Fragment key={stepName}>
+                                <div
+                                    className={`step-item ${getStepStatus(stepName)}`}
+                                >
+                                    <span>{icon}</span>
+                                    <span className="step-label">{label}</span>
+                                </div>
+                                {idx < 3 && <div className={`step-connector ${getStepStatus(stepName) === 'completed' ? 'completed' : ''}`} />}
+                            </React.Fragment>
+                        ))}
+                    </div>
+
+                    {/* Error Message */}
+                    {error && (
+                        <div className="message-box error">
+                            <span>❌ {error}</span>
+                            <button onClick={() => setError(undefined)}>✕</button>
+                        </div>
+                    )}
+
+                    {/* Success Message */}
+                    {successMessage && (
+                        <div className="message-box success">
+                            <span>✅ {successMessage}</span>
+                            <button onClick={() => setSuccessMessage(undefined)}>✕</button>
+                        </div>
+                    )}
+
                     {/* Main Content */}
-                    <Card>
+                    <Card className={(step === 'editing' || step === 'preview') ? 'wide-card' : ''}>
                         {step === 'upload' ? (
                             <div className="upload-section">
                                 <PdfUploader
@@ -238,12 +393,25 @@ export default function PdfPage() {
                             </div>
                         ) : null}
 
+                        {step === 'editing' && pendingRecords.length > 0 ? (
+                            <div className="editing-section">
+                                <CT3ADataReviewTable
+                                    records={pendingRecords}
+                                    onConfirmAll={handleConfirmEditedData}
+                                    onCancel={handleCancelEdit}
+                                />
+                            </div>
+                        ) : null}
+
                         {step === 'preview' ? (
                             <CT3ADataPreview
                                 records={records}
                                 fileName={fileName}
                                 totalPages={totalPages}
                                 onReset={handleReset}
+                                onBackToEdit={handleBackToEdit}
+                                onSaveData={handleSaveData}
+                                isSaving={isSaving}
                             />
                         ) : null}
                     </Card>
@@ -256,12 +424,13 @@ export default function PdfPage() {
                                 <li>Upload file PDF chứa bảng dữ liệu CT3A (tối đa 5MB)</li>
                                 <li>Hệ thống sẽ tự động chuyển đổi từng trang PDF thành ảnh</li>
                                 <li>AI sẽ đọc và trích xuất dữ liệu từ các bảng</li>
-                                <li>Xem trước dữ liệu và bấm &quot;Xuất Excel&quot; để tải file</li>
+                                <li><strong>Kiểm tra và chỉnh sửa</strong> dữ liệu nếu cần</li>
+                                <li>Bấm &quot;Lưu Dữ Liệu&quot; hoặc &quot;Xuất Excel&quot; để hoàn tất</li>
                             </ol>
                             <div className="note">
-                                <strong>⏱️ Thời gian xử lý:</strong> Khoảng 3-5 phút cho file có nhiều trang.
+                                <strong>💾 Lưu ý:</strong> Dữ liệu sẽ được tự động lưu lại khi bạn chuyển trang.
                                 <br />
-                                <strong>📄 Giới hạn:</strong> File PDF tối đa 5MB.
+                                <strong>⏱️ Thời gian xử lý:</strong> Khoảng 3-5 phút cho file có nhiều trang.
                             </div>
                         </div>
                     )}
@@ -275,7 +444,7 @@ export default function PdfPage() {
 
                 .page-header {
                     text-align: center;
-                    margin-bottom: 32px;
+                    margin-bottom: 24px;
                 }
 
                 .page-header h1 {
@@ -291,8 +460,114 @@ export default function PdfPage() {
                     margin: 0;
                 }
 
+                .step-indicators {
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 8px;
+                    margin-bottom: 24px;
+                }
+
+                .step-item {
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                    padding: 8px 16px;
+                    border-radius: 20px;
+                    font-size: 13px;
+                    font-weight: 500;
+                    transition: all 0.3s;
+                }
+
+                .step-item.current {
+                    background: #2563eb;
+                    color: white;
+                    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+                    transform: scale(1.05);
+                }
+
+                .step-item.completed {
+                    background: #dcfce7;
+                    color: #16a34a;
+                }
+
+                .step-item.pending {
+                    background: #f3f4f6;
+                    color: #9ca3af;
+                }
+
+                .step-label {
+                    display: none;
+                }
+
+                @media (min-width: 640px) {
+                    .step-label {
+                        display: inline;
+                    }
+                }
+
+                .step-connector {
+                    width: 24px;
+                    height: 2px;
+                    background: #e5e7eb;
+                    transition: background 0.3s;
+                }
+
+                .step-connector.completed {
+                    background: #86efac;
+                }
+
+                .message-box {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    padding: 12px 16px;
+                    border-radius: 8px;
+                    margin-bottom: 16px;
+                    font-size: 14px;
+                }
+
+                .message-box.error {
+                    background: #fef2f2;
+                    border: 1px solid #fecaca;
+                    color: #dc2626;
+                }
+
+                .message-box.success {
+                    background: #f0fdf4;
+                    border: 1px solid #bbf7d0;
+                    color: #16a34a;
+                }
+
+                .message-box button {
+                    background: none;
+                    border: none;
+                    cursor: pointer;
+                    opacity: 0.6;
+                    transition: opacity 0.2s;
+                }
+
+                .message-box button:hover {
+                    opacity: 1;
+                }
+
                 .upload-section {
                     padding: 20px;
+                }
+
+                :global(.wide-card) {
+                    width: 90vw !important;
+                    max-width: 90vw !important;
+                    position: relative !important;
+                    left: 50% !important;
+                    transform: translateX(-50%) !important;
+                }
+
+                .editing-section {
+                    padding: 20px;
+                    min-height: 500px;
+                    width: 100%;
+                    overflow-x: auto;
                 }
 
                 .processing-section {
@@ -435,38 +710,6 @@ export default function PdfPage() {
                     font-size: 14px;
                     color: #1e40af;
                     line-height: 1.6;
-                }
-
-                .back-link {
-                    margin-top: 20px;
-                    padding-top: 20px;
-                    border-top: 1px solid #e5e7eb;
-                    text-align: center;
-                }
-
-                .back-link p {
-                    color: #6b7280;
-                    font-size: 14px;
-                    margin: 0 0 12px;
-                }
-
-                .back-button {
-                    display: inline-flex;
-                    align-items: center;
-                    gap: 8px;
-                    padding: 10px 20px;
-                    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-                    color: white;
-                    font-weight: 500;
-                    border-radius: 10px;
-                    text-decoration: none;
-                    transition: all 0.2s;
-                    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
-                }
-
-                .back-button:hover {
-                    transform: translateY(-2px);
-                    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
                 }
             `}</style>
         </div>

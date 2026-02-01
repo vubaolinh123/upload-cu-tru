@@ -29,18 +29,25 @@ QUAN TRỌNG - THỨ TỰ ĐỌC:
 - KHÔNG đọc ngược: "Bình Nguyễn Đức" là SAI
 - Họ luôn đứng trước, tên đứng sau (theo thứ tự tiếng Việt)
 
+⚠️ CẢNH BÁO - LỖI THƯỜNG GẶP:
+- KHÔNG NHẦM LẪN giữa "ngaySinh" và "hoKhauThuongTru"
+- "ngaySinh" chỉ chứa NGÀY THÁNG NĂM SINH với định dạng DD/MM/YYYY (ví dụ: 15/03/1990, 01/12/1985)
+- "hoKhauThuongTru" là ĐỊA CHỈ, chứa tên đường, số nhà, phường, quận (ví dụ: "Căn hộ 807, Tòa nhà A, Đường Nguyễn Trãi, Phường 1, Quận 5")
+- Nếu dữ liệu là NGÀY (DD/MM/YYYY) → đó là "ngaySinh"
+- Nếu dữ liệu là ĐỊA CHỈ (có tên đường, số nhà, phường, quận) → đó là "hoKhauThuongTru"
+
 QUAN TRỌNG - Đọc đúng các cột trong ảnh:
 - "stt": Số thứ tự trong ảnh
 - "hoTen": Họ và tên
-- "soCCCD": Số CCCD/CMND
-- "ngaySinh": Ngày tháng năm sinh
+- "soCCCD": Số CCCD/CMND (12 số)
+- "ngaySinh": Ngày tháng năm sinh - CHỈ CHỨA NGÀY THÁNG NĂM theo định dạng DD/MM/YYYY (ví dụ: 15/03/1990). KHÔNG BAO GIỜ chứa địa chỉ!
 - "gioiTinh": Nam hoặc Nữ
-- "queQuan": Quê quán (cột ghi nơi sinh/nguyên quán)
-- "danToc": Dân tộc
-- "quocTich": Quốc tịch
+- "queQuan": Quê quán (cột ghi nơi sinh/nguyên quán) - là địa danh cấp tỉnh/huyện
+- "danToc": Dân tộc (Kinh, Hoa, Tày, Nùng...)
+- "quocTich": Quốc tịch (Việt Nam, ...)
 - "quanHeVoiChuHo": Quan hệ với chủ hộ (Chủ hộ, Vợ, Chồng, Con, Con đẻ, Cháu...)
-- "oDauDen": Ở đâu đến - địa chỉ nơi ở trước đó (ví dụ: 25 Lô NV07 Khu ĐTM...)
-- "hoKhauThuongTru": Hộ khẩu thường trú - địa chỉ đăng ký thường trú (ví dụ: Căn hộ chung cư số 807...)
+- "oDauDen": Ở đâu đến - địa chỉ nơi ở TRƯỚC ĐÓ (ví dụ: 25 Lô NV07 Khu ĐTM...)
+- "hoKhauThuongTru": Hộ khẩu thường trú - ĐỊA CHỈ ĐĂNG KÝ THƯỜNG TRÚ HIỆN TẠI (ví dụ: Căn hộ chung cư số 807, Tòa A, Đường ABC). Đây là ĐỊA CHỈ, KHÔNG PHẢI NGÀY SINH!
 
 [
   {

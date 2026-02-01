@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { Header, Container } from './components/layout';
 import { Card, LoadingSpinner } from './components/ui';
@@ -9,6 +9,7 @@ import { exportToPDF, printDocument } from './services/pdfExportService';
 import { exportHouseholdToExcel } from './services/excelExportService';
 import { saveHouseholdData } from './services/dataSaveService';
 import { groupByHousehold } from './lib/householdGrouper';
+import { STORAGE_KEYS } from './lib/storageKeys';
 import type { PersonInfo, UploadedImage, AppStep } from './types/residence';
 import type { Household, HouseholdGroupResult } from './types/household';
 
@@ -60,9 +61,50 @@ export default function Home() {
   const [isSaving, setIsSaving] = useState(false); // NEW: Saving state
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null); // NEW: Success message
+  const [isHydrated, setIsHydrated] = useState(false);
 
   // Household selection state
   const [selectedHouseholdId, setSelectedHouseholdId] = useState<string | null>(null);
+
+  // Persisted data type
+  interface PersistedImageData {
+    accumulatedPersons: PersonInfo[];
+    uploadedImagesCount: number;
+    timestamp: number;
+  }
+
+  // Load persisted data on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.IMAGE_UPLOAD_DATA);
+      if (stored) {
+        const data: PersistedImageData = JSON.parse(stored);
+        if (data.accumulatedPersons && data.accumulatedPersons.length > 0) {
+          setAccumulatedPersons(data.accumulatedPersons);
+          setCurrentStep('preview');
+        }
+      }
+    } catch (err) {
+      console.warn('[Image Page] Failed to load persisted data:', err);
+    }
+    setIsHydrated(true);
+  }, []);
+
+  // Persist data when accumulatedPersons change
+  useEffect(() => {
+    if (!isHydrated || accumulatedPersons.length === 0) return;
+
+    try {
+      const data: PersistedImageData = {
+        accumulatedPersons,
+        uploadedImagesCount: uploadedImages.length,
+        timestamp: Date.now(),
+      };
+      localStorage.setItem(STORAGE_KEYS.IMAGE_UPLOAD_DATA, JSON.stringify(data));
+    } catch (err) {
+      console.warn('[Image Page] Failed to persist data:', err);
+    }
+  }, [accumulatedPersons, uploadedImages.length, isHydrated]);
 
   // Group persons by household
   const householdResult: HouseholdGroupResult = useMemo(() => {
@@ -221,6 +263,13 @@ export default function Home() {
   }, [isSaving, householdResult.households]);
 
   const handleReset = useCallback(() => {
+    // Clear persisted data
+    try {
+      localStorage.removeItem(STORAGE_KEYS.IMAGE_UPLOAD_DATA);
+    } catch (err) {
+      console.warn('[Image Page] Failed to clear persisted data:', err);
+    }
+
     setUploadedImages([]);
     setAccumulatedPersons([]);
     setPendingPersons([]);
