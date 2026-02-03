@@ -7,6 +7,7 @@ import { Card, LoadingSpinner } from './components/ui';
 import { analyzeImage } from './services/imageAnalysisService';
 import { exportToPDF, printDocument } from './services/pdfExportService';
 import { exportHouseholdToExcel } from './services/excelExportService';
+import { exportHouseholdToWord } from './services/wordExportService';
 import { saveHouseholdData } from './services/dataSaveService';
 import { groupByHousehold } from './lib/householdGrouper';
 import { STORAGE_KEYS } from './lib/storageKeys';
@@ -237,6 +238,15 @@ export default function Home() {
       await exportHouseholdToExcel(selectedHousehold);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Có lỗi khi xuất Excel');
+    }
+  }, [selectedHousehold]);
+
+  const handleExportWord = useCallback(async () => {
+    if (!selectedHousehold) return;
+    try {
+      await exportHouseholdToWord(selectedHousehold);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Có lỗi khi xuất Word');
     }
   }, [selectedHousehold]);
 
@@ -498,6 +508,7 @@ export default function Home() {
                   <ExportButtons
                     onExportPDF={handleExportPDF}
                     onExportExcel={handleExportExcel}
+                    onExportWord={handleExportWord}
                     onPrint={handlePrint}
                     onSaveData={handleSaveData}
                     isExporting={isExporting}

@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { CT3ARecord } from '../../types/pdfTypes';
 import { exportCT3AToExcel } from '../../services/pdfToExcelExportService';
+import { exportCT3AToWord } from '../../services/ct3aWordExportService';
 
 // All fields matching the PDF/Excel format
 const ALL_FIELDS: Array<{ key: keyof CT3ARecord; label: string }> = [
@@ -40,6 +41,7 @@ export default function CT3ADataPreview({
     isSaving = false,
 }: CT3ADataPreviewProps) {
     const [isExporting, setIsExporting] = useState(false);
+    const [isExportingWord, setIsExportingWord] = useState(false);
 
     const handleExport = async () => {
         setIsExporting(true);
@@ -50,6 +52,18 @@ export default function CT3ADataPreview({
             alert('Lỗi khi xuất Excel. Vui lòng thử lại.');
         } finally {
             setIsExporting(false);
+        }
+    };
+
+    const handleExportWord = async () => {
+        setIsExportingWord(true);
+        try {
+            await exportCT3AToWord(records, fileName);
+        } catch (error) {
+            console.error('Export Word error:', error);
+            alert('Lỗi khi xuất Word. Vui lòng thử lại.');
+        } finally {
+            setIsExportingWord(false);
         }
     };
 
@@ -105,7 +119,7 @@ export default function CT3ADataPreview({
                     <button
                         className="btn-export"
                         onClick={handleExport}
-                        disabled={isExporting || records.length === 0}
+                        disabled={isExporting || isExportingWord || records.length === 0}
                     >
                         {isExporting ? (
                             <>
@@ -120,6 +134,29 @@ export default function CT3ADataPreview({
                                     <line x1="12" y1="15" x2="12" y2="3"></line>
                                 </svg>
                                 Xuất Excel
+                            </>
+                        )}
+                    </button>
+                    <button
+                        className="btn-export-word"
+                        onClick={handleExportWord}
+                        disabled={isExporting || isExportingWord || records.length === 0}
+                    >
+                        {isExportingWord ? (
+                            <>
+                                <span className="spinner"></span>
+                                Đang xuất...
+                            </>
+                        ) : (
+                            <>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                                    <polyline points="10 9 9 9 8 9"></polyline>
+                                </svg>
+                                Xuất Word
                             </>
                         )}
                     </button>
@@ -198,7 +235,7 @@ export default function CT3ADataPreview({
                     flex-wrap: wrap;
                 }
 
-                .btn-reset, .btn-export, .btn-save {
+                .btn-reset, .btn-export, .btn-export-word, .btn-save {
                     display: flex;
                     align-items: center;
                     gap: 6px;
@@ -230,6 +267,20 @@ export default function CT3ADataPreview({
                 }
 
                 .btn-export:disabled {
+                    opacity: 0.7;
+                    cursor: not-allowed;
+                }
+
+                .btn-export-word {
+                    background: #2563eb;
+                    color: white;
+                }
+
+                .btn-export-word:hover:not(:disabled) {
+                    background: #1d4ed8;
+                }
+
+                .btn-export-word:disabled {
                     opacity: 0.7;
                     cursor: not-allowed;
                 }
