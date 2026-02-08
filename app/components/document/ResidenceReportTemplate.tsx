@@ -101,10 +101,31 @@ export default function ResidenceReportTemplate({ household, headerInfo = {} }: 
             </div>
 
             {/* Date and Location */}
-            <p style={{ margin: '8px 0' }}>
-                Hôm nay, vào lúc <Field value={gioLap} dotCount={5} /> giờ <Dots count={5} /> ngày{' '}
-                <Field value={ngayLap} dotCount={5} /> tháng <Dots count={3} /> năm 2026
-            </p>
+            {(() => {
+                // Parse ngayLap format: DD/MM/YYYY
+                let ngay = '', thang = '', nam = '2026';
+                if (ngayLap) {
+                    const parts = ngayLap.split('/');
+                    if (parts.length >= 1) ngay = parts[0];
+                    if (parts.length >= 2) thang = parts[1];
+                    if (parts.length >= 3) nam = parts[2];
+                }
+
+                // Parse gioLap format: HH:MM or HH
+                let gio = '', phut = '';
+                if (gioLap) {
+                    const timeParts = gioLap.split(':');
+                    gio = timeParts[0] || '';
+                    phut = timeParts[1] || '';
+                }
+
+                return (
+                    <p style={{ margin: '8px 0' }}>
+                        Hôm nay, vào lúc {gio ? <span style={{ fontWeight: 500 }}>{gio}</span> : <Dots count={5} />} giờ {phut ? <span style={{ fontWeight: 500 }}>{phut}</span> : <Dots count={5} />} ngày{' '}
+                        {ngay ? <span style={{ fontWeight: 500 }}>{ngay}</span> : <Dots count={5} />} tháng {thang ? <span style={{ fontWeight: 500 }}>{thang}</span> : <Dots count={3} />} năm {nam ? <span style={{ fontWeight: 500 }}>{nam}</span> : <Dots count={5} />}
+                    </p>
+                );
+            })()}
             <p style={{ margin: '8px 0' }}>
                 Tại địa chỉ: <Field value={diaChiChuHo} dotCount={40} />, phường {phuong}, tỉnh {tinhThanh}.
             </p>

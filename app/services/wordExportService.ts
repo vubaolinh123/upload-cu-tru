@@ -183,13 +183,42 @@ function createPersonSection(person: PersonInfo, index: number): Paragraph[] {
     ];
 }
 
+interface HeaderInfo {
+    gioLap?: string;
+    ngayLap?: string;
+}
+
 /**
  * Export household data to Word document - matching Print template 100%
  */
-export async function exportHouseholdToWord(household: Household): Promise<void> {
+export async function exportHouseholdToWord(household: Household, headerInfo?: HeaderInfo): Promise<void> {
     const chuHo = household.chuHo;
     const allPersons = household.allPersons;
     const diaChiChuHo = chuHo.hoKhauThuongTru || '';
+
+    // Parse ngayLap format: DD/MM/YYYY
+    let ngay = '', thang = '', nam = '2026';
+    if (headerInfo?.ngayLap) {
+        const parts = headerInfo.ngayLap.split('/');
+        if (parts.length >= 1) ngay = parts[0];
+        if (parts.length >= 2) thang = parts[1];
+        if (parts.length >= 3) nam = parts[2];
+    }
+
+    // Parse gioLap format: HH:MM or HH
+    let gio = '', phut = '';
+    if (headerInfo?.gioLap) {
+        const timeParts = headerInfo.gioLap.split(':');
+        gio = timeParts[0] || '';
+        phut = timeParts[1] || '';
+    }
+
+    // Build date/time string
+    const gioStr = gio || DOTS;
+    const phutStr = phut || DOTS;
+    const ngayStr = ngay || DOTS;
+    const thangStr = thang || DOTS;
+    const namStr = nam;
 
     const doc = new Document({
         sections: [
@@ -225,7 +254,7 @@ export async function exportHouseholdToWord(household: Household): Promise<void>
 
                     // ========== DATE & LOCATION ==========
                     createParagraph([
-                        text(`Hôm nay, vào lúc ${DOTS} giờ ${DOTS} ngày ${DOTS} tháng ${DOTS} năm 2026`),
+                        text(`Hôm nay, vào lúc ${gioStr} giờ ${phutStr} ngày ${ngayStr} tháng ${thangStr} năm ${namStr}`),
                     ]),
 
                     createParagraph([

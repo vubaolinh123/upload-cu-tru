@@ -63,7 +63,7 @@ export default function ManualEntryPage() {
         if (!household) return;
         setIsExporting(true);
         try {
-            await exportHouseholdToWord(household);
+            await exportHouseholdToWord(household, headerInfo);
         } catch (error) {
             console.error('Export Word error:', error);
             alert('Lỗi khi xuất Word. Vui lòng thử lại.');
