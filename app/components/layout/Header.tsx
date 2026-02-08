@@ -11,6 +11,7 @@ interface HeaderProps {
 const NAV_ITEMS = [
     { href: '/', label: 'Upload Ảnh', icon: '📷', mobileLabel: 'Ảnh' },
     { href: '/pdf', label: 'PDF to Excel', icon: '📄', mobileLabel: 'PDF' },
+    { href: '/nhap-thu-cong', label: 'Nhập thủ công', icon: '✍️', mobileLabel: 'Nhập' },
     { href: '/quan-ly', label: 'Quản lý', icon: '📊', mobileLabel: 'QL' },
 ];
 
