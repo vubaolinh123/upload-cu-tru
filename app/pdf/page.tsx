@@ -4,7 +4,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { Header, Container } from '../components/layout';
 import { Card, LoadingSpinner } from '../components/ui';
-import { CT3ARecord, PdfExtractionResult } from '../types/pdfTypes';
+import { CT3ARecord } from '../types/pdfTypes';
 import { saveCT3AData } from '../services/ct3aDataSaveService';
 import { STORAGE_KEYS } from '../lib/storageKeys';
 
@@ -97,9 +97,9 @@ export default function PdfPage() {
     }, [records, fileName, totalPages, isHydrated]);
 
     const handleFileSelect = useCallback(async (file: File) => {
-        // Validate file size (7MB limit)
-        if (file.size > 7 * 1024 * 1024) {
-            setError('File quá lớn. Vui lòng chọn file nhỏ hơn 7MB.');
+        // Validate file size (10MB limit - increased for multi-page PDFs)
+        if (file.size > 10 * 1024 * 1024) {
+            setError('File quá lớn. Vui lòng chọn file nhỏ hơn 10MB.');
             return;
         }
 
@@ -116,76 +116,116 @@ export default function PdfPage() {
         });
 
         try {
+            // Step 1: Upload PDF and get session info
             const formData = new FormData();
             formData.append('pdf', file);
 
-            // Use fetch with streaming
-            const response = await fetch('/api/pdf-ocr', {
+            const uploadResponse = await fetch('/api/pdf-ocr', {
                 method: 'POST',
                 body: formData,
             });
 
-            if (!response.ok || !response.body) {
-                throw new Error('Failed to process PDF');
+            const uploadResult = await uploadResponse.json();
+
+            if (!uploadResult.success) {
+                throw new Error(uploadResult.error || 'Failed to upload PDF');
             }
 
-            // Read SSE stream
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = '';
+            const { sessionId, pageCount, fileName: uploadedFileName } = uploadResult;
+            setFileName(uploadedFileName);
+            setTotalPages(pageCount);
 
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
+            setProgress({
+                message: `Tìm thấy ${pageCount} trang. Bắt đầu xử lý...`,
+                percent: 10,
+                currentPage: 0,
+                totalPages: pageCount,
+                recordsFound: 0,
+            });
 
-                buffer += decoder.decode(value, { stream: true });
+            // Step 2: Process each page with separate API calls
+            const allRecords: CT3ARecord[] = [];
+            const MAX_RETRIES = 2;
 
-                // Process complete SSE messages
-                const lines = buffer.split('\n\n');
-                buffer = lines.pop() || ''; // Keep incomplete message in buffer
+            for (let pageIndex = 0; pageIndex < pageCount; pageIndex++) {
+                const pageNum = pageIndex + 1;
+                const progressPercent = 10 + Math.floor(((pageIndex + 1) / pageCount) * 85);
 
-                for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        try {
-                            const data = JSON.parse(line.slice(6));
+                setProgress(prev => ({
+                    ...prev,
+                    message: `Đang xử lý trang ${pageNum}/${pageCount}...`,
+                    percent: progressPercent - 5, // Show progress before completion
+                    currentPage: pageNum,
+                }));
 
-                            switch (data.type) {
-                                case 'progress':
-                                    setProgress(prev => ({
-                                        ...prev,
-                                        message: data.message,
-                                        percent: data.progress,
-                                        currentPage: data.currentPage || prev.currentPage,
-                                        totalPages: data.totalPages || prev.totalPages,
-                                    }));
-                                    break;
+                let success = false;
+                let lastError: string | null = null;
 
-                                case 'page_complete':
-                                    setProgress(prev => ({
-                                        ...prev,
-                                        recordsFound: data.totalRecordsSoFar,
-                                    }));
-                                    break;
-
-                                case 'complete':
-                                    const result: PdfExtractionResult = data;
-                                    // Store pending records for editing
-                                    setPendingRecords(result.allRecords);
-                                    setFileName(result.fileName);
-                                    setTotalPages(result.totalPages);
-                                    // Go to editing step instead of preview
-                                    setStep('editing');
-                                    break;
-
-                                case 'error':
-                                    throw new Error(data.error);
-                            }
-                        } catch (parseError) {
-                            console.error('Failed to parse SSE:', parseError);
+                // Retry logic for each page
+                for (let attempt = 0; attempt < MAX_RETRIES && !success; attempt++) {
+                    try {
+                        if (attempt > 0) {
+                            console.log(`[PDF] Retry attempt ${attempt + 1} for page ${pageNum}`);
+                            setProgress(prev => ({
+                                ...prev,
+                                message: `Đang thử lại trang ${pageNum}... (lần ${attempt + 1})`,
+                            }));
                         }
+
+                        const pageResponse = await fetch('/api/pdf-ocr-page', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ sessionId, pageIndex }),
+                        });
+
+                        const pageResult = await pageResponse.json();
+
+                        if (!pageResult.success) {
+                            lastError = pageResult.error || 'Unknown error';
+                            continue; // Try again
+                        }
+
+                        // Add records from this page
+                        if (pageResult.records && pageResult.records.length > 0) {
+                            allRecords.push(...pageResult.records);
+                        }
+
+                        success = true;
+
+                        // Update progress
+                        setProgress(prev => ({
+                            ...prev,
+                            percent: progressPercent,
+                            recordsFound: allRecords.length,
+                            message: `Hoàn thành trang ${pageNum}/${pageCount} - Tìm thấy ${pageResult.records?.length || 0} bản ghi`,
+                        }));
+
+                        console.log(`[PDF] Page ${pageNum}: ${pageResult.records?.length || 0} records`);
+
+                    } catch (fetchError) {
+                        lastError = fetchError instanceof Error ? fetchError.message : 'Network error';
+                        console.error(`[PDF] Error processing page ${pageNum}:`, fetchError);
                     }
                 }
+
+                // If all retries failed, log but continue with other pages
+                if (!success) {
+                    console.warn(`[PDF] Failed to process page ${pageNum} after ${MAX_RETRIES} attempts: ${lastError}`);
+                }
             }
+
+            // Step 3: Complete processing
+            setProgress({
+                message: `Hoàn thành! Đã trích xuất ${allRecords.length} bản ghi từ ${pageCount} trang.`,
+                percent: 100,
+                currentPage: pageCount,
+                totalPages: pageCount,
+                recordsFound: allRecords.length,
+            });
+
+            // Store pending records for editing
+            setPendingRecords(allRecords);
+            setStep('editing');
 
         } catch (err) {
             console.error('PDF processing error:', err);
@@ -421,7 +461,7 @@ export default function PdfPage() {
                         <div className="instructions">
                             <h3>Hướng dẫn sử dụng</h3>
                             <ol>
-                                <li>Upload file PDF chứa bảng dữ liệu CT3A (tối đa 7MB)</li>
+                                <li>Upload file PDF chứa bảng dữ liệu CT3A (tối đa 10MB)</li>
                                 <li>Hệ thống sẽ tự động chuyển đổi từng trang PDF thành ảnh</li>
                                 <li>AI sẽ đọc và trích xuất dữ liệu từ các bảng</li>
                                 <li><strong>Kiểm tra và chỉnh sửa</strong> dữ liệu nếu cần</li>
