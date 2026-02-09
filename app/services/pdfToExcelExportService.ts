@@ -74,15 +74,9 @@ export async function exportCT3AToExcel(
     const headerRow = worksheet.addRow(COLUMNS.map(col => col.header));
     styleHeaderRow(headerRow);
 
-    // Sort records by stt to maintain original PDF order
-    const sortedRecords = [...records].sort((a, b) => {
-        const sttA = typeof a.stt === 'number' ? a.stt : parseInt(String(a.stt)) || 0;
-        const sttB = typeof b.stt === 'number' ? b.stt : parseInt(String(b.stt)) || 0;
-        return sttA - sttB;
-    });
-
-    // Add data rows
-    sortedRecords.forEach((record, index) => {
+    // Add data rows - keep original order from PDF extraction
+    // NOTE: stt field resets per household (1,2,3...) so we preserve extraction order
+    records.forEach((record, index) => {
         const row = worksheet.addRow([
             record.stt || index + 1,
             record.hoTen || '',
