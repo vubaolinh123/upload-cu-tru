@@ -140,7 +140,8 @@ export default function PdfPage() {
             // Step 2: Process each page
             // Render page to image on CLIENT, send only image to server
             const allRecords: CT3ARecord[] = [];
-            const MAX_RETRIES = 2;
+            const failedPages: number[] = []; // Track failed pages for reporting
+            const MAX_RETRIES = 1; // Only try once - don't waste time on timeout pages
             stopProcessingRef.current = false;
             collectedRecordsRef.current = [];
 
@@ -249,15 +250,33 @@ export default function PdfPage() {
                     break;
                 }
 
-                // If all retries failed, log but continue with other pages
+                // If failed, track the page number and continue to next page
                 if (!success && !stopProcessingRef.current) {
-                    console.warn(`[PDF] Failed to process page ${pageNum} after ${MAX_RETRIES} attempts: ${lastError}`);
+                    failedPages.push(pageNum);
+                    console.warn(`[PDF] Page ${pageNum} failed, will skip and report at end`);
+
+                    // Update progress to show skip
+                    setProgress(prev => ({
+                        ...prev,
+                        message: `Trang ${pageNum} lỗi - bỏ qua, đang xử lý tiếp...`,
+                    }));
                 }
             }
 
             // Step 3: Complete processing
+            const successPages = pageCount - failedPages.length;
+            let completionMessage = `Hoàn thành! Đã trích xuất ${allRecords.length} bản ghi từ ${successPages}/${pageCount} trang.`;
+
+            // Add failed pages warning
+            if (failedPages.length > 0) {
+                completionMessage += ` ⚠️ Trang lỗi: ${failedPages.join(', ')} (cần nhập thủ công)`;
+                // Set warning message for editing step
+                setSuccessMessage(undefined);
+                setError(`Không thể xử lý trang: ${failedPages.join(', ')}. Vui lòng nhập thủ công dữ liệu các trang này.`);
+            }
+
             setProgress({
-                message: `Hoàn thành! Đã trích xuất ${allRecords.length} bản ghi từ ${stopProcessingRef.current ? progress.currentPage : pageCount} trang.`,
+                message: completionMessage,
                 percent: 100,
                 currentPage: stopProcessingRef.current ? progress.currentPage : pageCount,
                 totalPages: pageCount,
