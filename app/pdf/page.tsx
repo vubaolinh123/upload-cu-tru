@@ -184,7 +184,10 @@ export default function PdfPage() {
                         const renderedPage = await renderPageToImage(file, pageIndex, 2);
 
                         // Check stop again after render
-                        if (stopProcessingRef.current) break;
+                        if (stopProcessingRef.current) {
+                            success = true; // Mark as success to avoid warning
+                            break;
+                        }
 
                         setProgress(prev => ({
                             ...prev,
@@ -201,6 +204,12 @@ export default function PdfPage() {
                                 pageNumber: renderedPage.pageNumber,
                             }),
                         });
+
+                        // Check stop after API call
+                        if (stopProcessingRef.current) {
+                            success = true;
+                            break;
+                        }
 
                         const pageResult = await pageResponse.json();
 
@@ -232,6 +241,12 @@ export default function PdfPage() {
                         lastError = fetchError instanceof Error ? fetchError.message : 'Network error';
                         console.error(`[PDF] Error processing page ${pageNum}:`, fetchError);
                     }
+                }
+
+                // Check stop after processing page - break from outer loop
+                if (stopProcessingRef.current) {
+                    console.log('[PDF] Stop requested - breaking from page loop');
+                    break;
                 }
 
                 // If all retries failed, log but continue with other pages
