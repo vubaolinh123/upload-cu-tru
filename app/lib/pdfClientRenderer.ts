@@ -1,14 +1,9 @@
 /**
  * Client-side PDF to Image renderer using pdfjs-dist
  * Renders PDF pages to base64 PNG images
+ * 
+ * IMPORTANT: This module only works in browser environment!
  */
-
-import * as pdfjsLib from 'pdfjs-dist';
-
-// Configure worker (required for pdfjs-dist)
-if (typeof window !== 'undefined') {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
-}
 
 export interface PdfInfo {
     pageCount: number;
@@ -20,12 +15,30 @@ export interface RenderedPage {
     imageBase64: string; // Base64 PNG without data: prefix
 }
 
+// Lazy load pdfjs-dist only on client side
+let pdfjsLib: typeof import('pdfjs-dist') | null = null;
+
+async function getPdfJs() {
+    if (typeof window === 'undefined') {
+        throw new Error('PDF rendering is only available in browser');
+    }
+
+    if (!pdfjsLib) {
+        pdfjsLib = await import('pdfjs-dist');
+        // Configure worker
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+    }
+
+    return pdfjsLib;
+}
+
 /**
  * Load PDF and get page count
  */
 export async function loadPdfInfo(file: File): Promise<PdfInfo> {
+    const pdfjs = await getPdfJs();
     const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
 
     return {
         pageCount: pdf.numPages,
@@ -44,8 +57,9 @@ export async function renderPageToImage(
     pageIndex: number,
     scale: number = 2
 ): Promise<RenderedPage> {
+    const pdfjs = await getPdfJs();
     const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
 
     const pageNumber = pageIndex + 1;
     const page = await pdf.getPage(pageNumber);
