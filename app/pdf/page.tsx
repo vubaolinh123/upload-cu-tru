@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { Header, Container } from '../components/layout';
 import { Card, LoadingSpinner } from '../components/ui';
@@ -59,6 +59,10 @@ export default function PdfPage() {
         totalPages: 0,
         recordsFound: 0,
     });
+
+    // Refs for stop processing feature
+    const stopProcessingRef = useRef(false);
+    const collectedRecordsRef = useRef<CT3ARecord[]>([]);
 
     // Load persisted data on mount
     useEffect(() => {
@@ -147,8 +151,16 @@ export default function PdfPage() {
             // Send PDF file with each request (serverless-compatible)
             const allRecords: CT3ARecord[] = [];
             const MAX_RETRIES = 2;
+            stopProcessingRef.current = false;
+            collectedRecordsRef.current = [];
 
             for (let pageIndex = 0; pageIndex < pageCount; pageIndex++) {
+                // Check if user requested to stop
+                if (stopProcessingRef.current) {
+                    console.log('[PDF] User requested stop. Showing collected results.');
+                    break;
+                }
+
                 const pageNum = pageIndex + 1;
                 const progressPercent = 10 + Math.floor(((pageIndex + 1) / pageCount) * 85);
 
@@ -193,6 +205,8 @@ export default function PdfPage() {
                         // Add records from this page
                         if (pageResult.records && pageResult.records.length > 0) {
                             allRecords.push(...pageResult.records);
+                            // Update ref so stop handler can access current records
+                            collectedRecordsRef.current = [...allRecords];
                         }
 
                         success = true;
@@ -421,6 +435,22 @@ export default function PdfPage() {
                                         <p className="time-estimate">
                                             Thời gian còn lại: {getEstimatedTime()}
                                         </p>
+                                    )}
+
+                                    {/* Stop button - only show when we have collected some records */}
+                                    {progress.recordsFound > 0 && progress.currentPage < progress.totalPages && (
+                                        <button
+                                            className="stop-button"
+                                            onClick={() => {
+                                                stopProcessingRef.current = true;
+                                                setProgress(prev => ({
+                                                    ...prev,
+                                                    message: 'Đang dừng và lưu kết quả...',
+                                                }));
+                                            }}
+                                        >
+                                            ⏹️ Dừng và xem kết quả ({progress.recordsFound} bản ghi)
+                                        </button>
                                     )}
 
                                     <div className="warning-note">
@@ -702,6 +732,26 @@ export default function PdfPage() {
                     font-size: 14px;
                     color: #6b7280;
                     margin: 0;
+                }
+
+                .stop-button {
+                    padding: 12px 24px;
+                    background: linear-gradient(135deg, #f59e0b, #d97706);
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    font-size: 14px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    margin-top: 8px;
+                    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+                }
+
+                .stop-button:hover {
+                    background: linear-gradient(135deg, #d97706, #b45309);
+                    transform: translateY(-1px);
+                    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
                 }
 
                 .warning-note {
