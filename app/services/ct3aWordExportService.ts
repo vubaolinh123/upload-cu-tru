@@ -189,12 +189,20 @@ export async function exportCT3AToWord(records: CT3ARecord[], fileName: string):
                             size: 100,
                             type: WidthType.PERCENTAGE,
                         },
-                        rows: [
-                            createHeaderRow(),
-                            ...records.map((record, index) =>
-                                createDataRow(record, index)
-                            ),
-                        ],
+                        rows: (() => {
+                            // Sort records by stt to maintain original PDF order
+                            const sortedRecords = [...records].sort((a, b) => {
+                                const sttA = typeof a.stt === 'number' ? a.stt : parseInt(String(a.stt)) || 0;
+                                const sttB = typeof b.stt === 'number' ? b.stt : parseInt(String(b.stt)) || 0;
+                                return sttA - sttB;
+                            });
+                            return [
+                                createHeaderRow(),
+                                ...sortedRecords.map((record, index) =>
+                                    createDataRow(record, index)
+                                ),
+                            ];
+                        })(),
                     }),
 
                     // Footer
