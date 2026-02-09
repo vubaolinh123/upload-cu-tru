@@ -7,6 +7,7 @@ import { Card, LoadingSpinner } from '../components/ui';
 import { CT3ARecord } from '../types/pdfTypes';
 import { saveCT3AData } from '../services/ct3aDataSaveService';
 import { STORAGE_KEYS } from '../lib/storageKeys';
+import { loadPdfInfo, renderPageToImage } from '../lib/pdfClientRenderer';
 
 // Dynamic imports for code splitting - NO SSR
 const PdfUploader = dynamic(
@@ -101,9 +102,9 @@ export default function PdfPage() {
     }, [records, fileName, totalPages, isHydrated]);
 
     const handleFileSelect = useCallback(async (file: File) => {
-        // Validate file size (7MB limit)
-        if (file.size > 7 * 1024 * 1024) {
-            setError('File quá lớn. Vui lòng chọn file nhỏ hơn 7MB.');
+        // Validate file size (15MB limit - images are smaller after render)
+        if (file.size > 15 * 1024 * 1024) {
+            setError('File quá lớn. Vui lòng chọn file nhỏ hơn 15MB.');
             return;
         }
 
@@ -112,7 +113,7 @@ export default function PdfPage() {
         setSuccessMessage(undefined);
         setStep('processing');
         setProgress({
-            message: 'Đang kiểm tra file PDF...',
+            message: 'Đang đọc file PDF...',
             percent: 2,
             currentPage: 0,
             totalPages: 0,
@@ -120,23 +121,12 @@ export default function PdfPage() {
         });
 
         try {
-            // Step 1: Get PDF info (page count)
-            const infoFormData = new FormData();
-            infoFormData.append('pdf', file);
+            // Step 1: Load PDF info client-side
+            console.log('[PDF] Loading PDF info...');
+            const pdfInfo = await loadPdfInfo(file);
+            const { pageCount, fileName: pdfFileName } = pdfInfo;
 
-            const uploadResponse = await fetch('/api/pdf-ocr', {
-                method: 'POST',
-                body: infoFormData,
-            });
-
-            const uploadResult = await uploadResponse.json();
-
-            if (!uploadResult.success) {
-                throw new Error(uploadResult.error || 'Failed to read PDF');
-            }
-
-            const { pageCount, fileName: uploadedFileName } = uploadResult;
-            setFileName(uploadedFileName);
+            setFileName(pdfFileName);
             setTotalPages(pageCount);
 
             setProgress({
@@ -147,8 +137,8 @@ export default function PdfPage() {
                 recordsFound: 0,
             });
 
-            // Step 2: Process each page with separate API calls
-            // Send PDF file with each request (serverless-compatible)
+            // Step 2: Process each page
+            // Render page to image on CLIENT, send only image to server
             const allRecords: CT3ARecord[] = [];
             const MAX_RETRIES = 2;
             stopProcessingRef.current = false;
@@ -166,8 +156,8 @@ export default function PdfPage() {
 
                 setProgress(prev => ({
                     ...prev,
-                    message: `Đang xử lý trang ${pageNum}/${pageCount}...`,
-                    percent: progressPercent - 5,
+                    message: `Đang render trang ${pageNum}/${pageCount}...`,
+                    percent: progressPercent - 8,
                     currentPage: pageNum,
                 }));
 
@@ -185,14 +175,31 @@ export default function PdfPage() {
                             }));
                         }
 
-                        // Create FormData with PDF file and pageIndex
-                        const pageFormData = new FormData();
-                        pageFormData.append('pdf', file);
-                        pageFormData.append('pageIndex', pageIndex.toString());
+                        // Render page to image on CLIENT side
+                        setProgress(prev => ({
+                            ...prev,
+                            message: `Đang render trang ${pageNum}/${pageCount}...`,
+                        }));
 
+                        const renderedPage = await renderPageToImage(file, pageIndex, 2);
+
+                        // Check stop again after render
+                        if (stopProcessingRef.current) break;
+
+                        setProgress(prev => ({
+                            ...prev,
+                            message: `Đang phân tích trang ${pageNum}/${pageCount}...`,
+                            percent: progressPercent - 3,
+                        }));
+
+                        // Send only the image to server (much smaller than PDF!)
                         const pageResponse = await fetch('/api/pdf-ocr-page', {
                             method: 'POST',
-                            body: pageFormData,
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                imageBase64: renderedPage.imageBase64,
+                                pageNumber: renderedPage.pageNumber,
+                            }),
                         });
 
                         const pageResult = await pageResponse.json();
@@ -228,16 +235,16 @@ export default function PdfPage() {
                 }
 
                 // If all retries failed, log but continue with other pages
-                if (!success) {
+                if (!success && !stopProcessingRef.current) {
                     console.warn(`[PDF] Failed to process page ${pageNum} after ${MAX_RETRIES} attempts: ${lastError}`);
                 }
             }
 
             // Step 3: Complete processing
             setProgress({
-                message: `Hoàn thành! Đã trích xuất ${allRecords.length} bản ghi từ ${pageCount} trang.`,
+                message: `Hoàn thành! Đã trích xuất ${allRecords.length} bản ghi từ ${stopProcessingRef.current ? progress.currentPage : pageCount} trang.`,
                 percent: 100,
-                currentPage: pageCount,
+                currentPage: stopProcessingRef.current ? progress.currentPage : pageCount,
                 totalPages: pageCount,
                 recordsFound: allRecords.length,
             });
@@ -253,7 +260,7 @@ export default function PdfPage() {
         } finally {
             setIsProcessing(false);
         }
-    }, []);
+    }, [progress.currentPage]);
 
     // Handler for confirming edited data
     const handleConfirmEditedData = useCallback((confirmedRecords: CT3ARecord[]) => {
@@ -496,7 +503,7 @@ export default function PdfPage() {
                         <div className="instructions">
                             <h3>Hướng dẫn sử dụng</h3>
                             <ol>
-                                <li>Upload file PDF chứa bảng dữ liệu CT3A (tối đa 7MB)</li>
+                                <li>Upload file PDF chứa bảng dữ liệu CT3A (tối đa 15MB)</li>
                                 <li>Hệ thống sẽ tự động chuyển đổi từng trang PDF thành ảnh</li>
                                 <li>AI sẽ đọc và trích xuất dữ liệu từ các bảng</li>
                                 <li><strong>Kiểm tra và chỉnh sửa</strong> dữ liệu nếu cần</li>
