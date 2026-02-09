@@ -9,8 +9,8 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Maximum file size: 5MB
-const MAX_FILE_SIZE = 5 * 1024 * 1024;
+// Maximum file size: 7MB
+const MAX_FILE_SIZE = 7 * 1024 * 1024;
 
 /**
  * Convert PDF page to PNG buffer using mupdf
@@ -63,11 +63,11 @@ export async function POST(request: NextRequest) {
                     return;
                 }
 
-                // Validate file size (5MB limit)
+                // Validate file size (7MB limit)
                 if (file.size > MAX_FILE_SIZE) {
                     controller.enqueue(encoder.encode(createSSEMessage({
                         type: 'error',
-                        error: 'File quá lớn. Vui lòng chọn file nhỏ hơn 5MB.'
+                        error: 'File quá lớn. Vui lòng chọn file nhỏ hơn 7MB.'
                     })));
                     controller.close();
                     return;

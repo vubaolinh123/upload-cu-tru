@@ -97,9 +97,9 @@ export default function PdfPage() {
     }, [records, fileName, totalPages, isHydrated]);
 
     const handleFileSelect = useCallback(async (file: File) => {
-        // Validate file size (5MB limit)
-        if (file.size > 5 * 1024 * 1024) {
-            setError('File quá lớn. Vui lòng chọn file nhỏ hơn 5MB.');
+        // Validate file size (7MB limit)
+        if (file.size > 7 * 1024 * 1024) {
+            setError('File quá lớn. Vui lòng chọn file nhỏ hơn 7MB.');
             return;
         }
 
@@ -421,7 +421,7 @@ export default function PdfPage() {
                         <div className="instructions">
                             <h3>Hướng dẫn sử dụng</h3>
                             <ol>
-                                <li>Upload file PDF chứa bảng dữ liệu CT3A (tối đa 5MB)</li>
+                                <li>Upload file PDF chứa bảng dữ liệu CT3A (tối đa 7MB)</li>
                                 <li>Hệ thống sẽ tự động chuyển đổi từng trang PDF thành ảnh</li>
                                 <li>AI sẽ đọc và trích xuất dữ liệu từ các bảng</li>
                                 <li><strong>Kiểm tra và chỉnh sửa</strong> dữ liệu nếu cần</li>

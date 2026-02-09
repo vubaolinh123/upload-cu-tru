@@ -88,7 +88,7 @@ export default function PdfUploader({ onFileSelect, isProcessing, error }: PdfUp
                         <p className="upload-text">
                             Kéo thả file PDF vào đây hoặc <span className="click-text">click để chọn file</span>
                         </p>
-                        <p className="file-hint">Chỉ chấp nhận file PDF, tối đa 5MB</p>
+                        <p className="file-hint">Chỉ chấp nhận file PDF, tối đa 7MB</p>
                         {selectedFileName && (
                             <p className="selected-file">Đã chọn: {selectedFileName}</p>
                         )}
