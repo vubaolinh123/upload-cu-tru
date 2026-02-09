@@ -25,8 +25,8 @@ async function getPdfJs() {
 
     if (!pdfjsLib) {
         pdfjsLib = await import('pdfjs-dist');
-        // Configure worker
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+        // Use unpkg which supports all npm versions
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
     }
 
     return pdfjsLib;
