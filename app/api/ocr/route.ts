@@ -1,26 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
-import { OPENAI_CONFIG, OCR_PROMPT } from '../../lib/openaiConfig';
-import { parseOCRResponseFromSDK } from '../../lib/openaiParser';
+import { processImageWithGemini } from '../../lib/geminiService';
 
 /**
- * API Route to proxy OCR requests to OpenAI
- * Using official OpenAI SDK
+ * API Route to process image OCR using Gemini Vision API
  */
 export async function POST(request: NextRequest) {
     try {
         // Check API key
-        const apiKey = process.env.OPENAI_API_KEY;
+        const apiKey = process.env.API_KEY_GEMINI;
         if (!apiKey) {
-            console.error('[OCR API] Missing OPENAI_API_KEY');
+            console.error('[OCR API] Missing API_KEY_GEMINI');
             return NextResponse.json(
                 { error: 'Server configuration error: Missing API key' },
                 { status: 500 }
             );
         }
-
-        // Initialize OpenAI client
-        const openai = new OpenAI({ apiKey });
 
         // Get FormData from request
         const formData = await request.formData();
@@ -39,39 +33,15 @@ export async function POST(request: NextRequest) {
         const arrayBuffer = await imageFile.arrayBuffer();
         const base64Image = Buffer.from(arrayBuffer).toString('base64');
         const mimeType = imageFile.type || 'image/jpeg';
-        const dataUrl = `data:${mimeType};base64,${base64Image}`;
 
         console.log(`[OCR API] Image converted to base64, MIME: ${mimeType}`);
-        console.log('[OCR API] Sending request to OpenAI SDK...');
+        console.log('[OCR API] Sending request to Gemini Vision API...');
 
-        // Call OpenAI API using SDK
-        const response = await openai.chat.completions.create({
-            model: OPENAI_CONFIG.model,
-            messages: [
-                {
-                    role: 'user',
-                    content: [
-                        { type: 'text', text: OCR_PROMPT },
-                        {
-                            type: 'image_url',
-                            image_url: {
-                                url: dataUrl,
-                                detail: 'high'
-                            }
-                        },
-                    ],
-                },
-            ],
-            max_tokens: OPENAI_CONFIG.maxTokens,
-        });
-
-        console.log('[OCR API] OpenAI response received');
-
-        // Parse the response to extract person data
-        const parsedData = parseOCRResponseFromSDK(response);
+        // Process with Gemini
+        const parsedData = await processImageWithGemini(base64Image, mimeType);
 
         if (!parsedData || parsedData.length === 0) {
-            console.error('[OCR API] Failed to parse response');
+            console.error('[OCR API] No data parsed from image');
             return NextResponse.json(
                 {
                     error: '0',
@@ -84,7 +54,7 @@ export async function POST(request: NextRequest) {
 
         console.log(`[OCR API] Parsed ${parsedData.length} persons from image`);
 
-        // Return in same format as before
+        // Return in same format as before for compatibility
         return NextResponse.json({
             error: '0',
             data: parsedData,
@@ -94,16 +64,8 @@ export async function POST(request: NextRequest) {
     } catch (error) {
         console.error('[OCR API] Error:', error);
 
-        // Handle OpenAI specific errors
-        if (error instanceof OpenAI.APIError) {
-            return NextResponse.json(
-                { error: `OpenAI API error: ${error.status} - ${error.message}` },
-                { status: error.status || 500 }
-            );
-        }
-
         return NextResponse.json(
-            { error: error instanceof Error ? error.message : 'Proxy error' },
+            { error: error instanceof Error ? error.message : 'OCR processing failed' },
             { status: 500 }
         );
     }

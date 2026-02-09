@@ -182,7 +182,7 @@ export default function CT3ADataPreview({
                         <tbody>
                             {records.map((record, index) => (
                                 <tr key={index}>
-                                    <td className="center sticky-col">{record.stt || index + 1}</td>
+                                    <td className="center sticky-col">{record.sttTrongHo || index + 1}</td>
                                     {ALL_FIELDS.map(({ key }) => (
                                         <td key={key} className={key === 'gioiTinh' || key === 'ngaySinh' || key === 'ngayDen' ? 'center' : ''}>
                                             {String(record[key] || '-')}

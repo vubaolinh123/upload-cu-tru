@@ -2,9 +2,14 @@
 
 /**
  * Record từ bảng CT3A trong PDF
+ * - sttChinh: STT hàng (2131, 2132...) - dùng để sort
+ * - sttTrongHo: STT trong hộ (1=chủ hộ, 2,3,4=thành viên) - giữ nguyên thứ tự
+ * - pageNumber: Trang PDF chứa record (dùng cho UI editing)
  */
 export interface CT3ARecord {
-    stt: number;
+    sttChinh: number | null;  // STT hàng chính (2131-2149), có thể null nếu PDF không có
+    sttTrongHo: number;       // STT trong hộ (1=chủ hộ, 2,3,4=thành viên)
+    pageNumber?: number;      // Số trang PDF chứa record này (1-indexed)
     hoTen: string | null;
     soDDCN_CCCD: string | null;
     ngaySinh: string | null;

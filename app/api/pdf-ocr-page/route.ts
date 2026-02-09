@@ -1,19 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import { processPdfPageWithGemini } from '../../lib/geminiService';
 import { CT3ARecord } from '../../types/pdfTypes';
-import { PDF_OCR_PROMPT, OPENAI_PDF_CONFIG } from '../../lib/pdfOcrConfig';
-
-// Initialize OpenAI client
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-});
 
 /**
- * Process a single PDF page image with OCR
+ * Process a single PDF page image with Gemini Vision OCR
  * Receives base64 PNG image from client-side rendering
  */
 export async function POST(request: NextRequest) {
     try {
+        // Check API key
+        const apiKey = process.env.API_KEY_GEMINI;
+        if (!apiKey) {
+            console.error('[PDF-OCR-Page] Missing API_KEY_GEMINI');
+            return NextResponse.json(
+                { success: false, error: 'Server configuration error: Missing API key' },
+                { status: 500 }
+            );
+        }
+
         const body = await request.json();
         const { imageBase64, pageNumber } = body;
 
@@ -34,55 +38,15 @@ export async function POST(request: NextRequest) {
 
         console.log(`[PDF-OCR-Page] Processing page ${pageNumber} (image size: ${Math.round(imageBase64.length / 1024)}KB)`);
 
-        // Send to OpenAI for OCR
-        console.log(`[PDF-OCR-Page] Sending page ${pageNumber} to OpenAI...`);
-        const response = await openai.chat.completions.create({
-            model: OPENAI_PDF_CONFIG.model,
-            max_tokens: OPENAI_PDF_CONFIG.maxTokens,
-            messages: [
-                {
-                    role: 'user',
-                    content: [
-                        {
-                            type: 'text',
-                            text: PDF_OCR_PROMPT,
-                        },
-                        {
-                            type: 'image_url',
-                            image_url: {
-                                url: `data:image/png;base64,${imageBase64}`,
-                                detail: 'high',
-                            },
-                        },
-                    ],
-                },
-            ],
-        });
-
-        const content = response.choices[0]?.message?.content || '[]';
-
-        // Parse JSON from response
-        let records: CT3ARecord[] = [];
-        try {
-            const jsonMatch = content.match(/\[[\s\S]*\]/);
-            if (jsonMatch) {
-                records = JSON.parse(jsonMatch[0]);
-            }
-        } catch (parseError) {
-            console.error(`[PDF-OCR-Page] Failed to parse page ${pageNumber}:`, parseError);
-            return NextResponse.json({
-                success: true,
-                pageNumber,
-                records: [],
-                error: 'Failed to parse AI response',
-            });
-        }
+        // Process with Gemini
+        const result = await processPdfPageWithGemini(imageBase64, pageNumber);
+        const records: CT3ARecord[] = result.records;
 
         console.log(`[PDF-OCR-Page] Page ${pageNumber}: Found ${records.length} records`);
 
         return NextResponse.json({
             success: true,
-            pageNumber,
+            pageNumber: result.pageNumber,
             records,
         });
 
@@ -91,7 +55,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
             {
                 success: false,
-                error: error instanceof Error ? error.message : 'Internal server error',
+                error: error instanceof Error ? error.message : 'PDF OCR processing failed',
             },
             { status: 500 }
         );
@@ -105,3 +69,7 @@ export async function GET() {
         { status: 405 }
     );
 }
+
+// Configure route for long-running requests
+export const maxDuration = 300; // 5 minutes max
+export const dynamic = 'force-dynamic';

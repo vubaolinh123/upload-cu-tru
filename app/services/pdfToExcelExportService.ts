@@ -78,7 +78,7 @@ export async function exportCT3AToExcel(
     // NOTE: stt field resets per household (1,2,3...) so we preserve extraction order
     records.forEach((record, index) => {
         const row = worksheet.addRow([
-            record.stt || index + 1,
+            record.sttTrongHo || index + 1,
             record.hoTen || '',
             record.soDDCN_CCCD || '',
             record.ngaySinh || '',

@@ -7,6 +7,7 @@ interface CT3ARecordEditorProps {
     record: CT3ARecord;
     index: number;
     isConfirmed: boolean;
+    showPageNumber?: boolean;
     onChange: (updatedRecord: CT3ARecord) => void;
     onConfirm: () => void;
     onEdit: () => void;
@@ -32,6 +33,7 @@ export default function CT3ARecordEditor({
     record,
     index,
     isConfirmed,
+    showPageNumber = false,
     onChange,
     onConfirm,
     onEdit,
@@ -48,8 +50,11 @@ export default function CT3ARecordEditor({
         return (
             <tr className="confirmed-row">
                 <td className="stt-cell sticky-col">
-                    {index + 1}
+                    {record.sttTrongHo || index + 1}
                 </td>
+                {showPageNumber && (
+                    <td className="page-cell">{record.pageNumber || '-'}</td>
+                )}
                 {ALL_FIELDS.map(({ key, width, minWidth }) => (
                     <td
                         key={key}
@@ -130,8 +135,11 @@ export default function CT3ARecordEditor({
     return (
         <tr className="edit-row">
             <td className="stt-cell sticky-col">
-                {index + 1}
+                {record.sttTrongHo || index + 1}
             </td>
+            {showPageNumber && (
+                <td className="page-cell">{record.pageNumber || '-'}</td>
+            )}
             {ALL_FIELDS.map(({ key, width, minWidth }) => (
                 <td
                     key={key}

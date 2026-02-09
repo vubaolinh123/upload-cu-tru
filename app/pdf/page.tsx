@@ -35,6 +35,14 @@ interface ProgressState {
     recordsFound: number;
 }
 
+interface PageResult {
+    pageNum: number;
+    status: 'pending' | 'processing' | 'success' | 'error';
+    recordCount: number;
+    errorMessage?: string;
+    processingTimeMs?: number; // Time taken to process this page in milliseconds
+}
+
 interface PersistedPdfData {
     records: CT3ARecord[];
     fileName: string;
@@ -60,10 +68,37 @@ export default function PdfPage() {
         totalPages: 0,
         recordsFound: 0,
     });
+    const [pageResults, setPageResults] = useState<PageResult[]>([]);
+
+    // Live elapsed timer for processing
+    const [elapsedSeconds, setElapsedSeconds] = useState(0);
+    const [finalElapsedSeconds, setFinalElapsedSeconds] = useState(0); // Saved when processing completes
+    const startTimeRef = useRef<number | null>(null);
 
     // Refs for stop processing feature
     const stopProcessingRef = useRef(false);
     const collectedRecordsRef = useRef<CT3ARecord[]>([]);
+
+    // Start/reset timer when step changes to processing
+    useEffect(() => {
+        if (step === 'processing') {
+            // Start timer
+            startTimeRef.current = Date.now();
+            setElapsedSeconds(0);
+
+            const interval = setInterval(() => {
+                if (startTimeRef.current) {
+                    const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+                    setElapsedSeconds(elapsed);
+                }
+            }, 1000);
+
+            return () => clearInterval(interval);
+        } else {
+            // Reset when not processing
+            startTimeRef.current = null;
+        }
+    }, [step]);
 
     // Load persisted data on mount
     useEffect(() => {
@@ -101,6 +136,33 @@ export default function PdfPage() {
         }
     }, [records, fileName, totalPages, isHydrated]);
 
+    /**
+     * Sort records by sttChinh (main row STT like 2131, 2132...)
+     * - If PDF has sttChinh: sort by sttChinh ascending
+     * - If PDF doesn't have sttChinh: keep original order to preserve household groupings
+     */
+    const sortRecordsBySttChinh = useCallback((recordsToSort: CT3ARecord[]): CT3ARecord[] => {
+        // Check if any record has sttChinh
+        const hasSttChinh = recordsToSort.some(r => r.sttChinh !== null && r.sttChinh !== undefined);
+
+        if (!hasSttChinh) {
+            // No sttChinh found - keep original order to preserve household groupings
+            console.log('[PDF] No sttChinh found, keeping original order');
+            return recordsToSort;
+        }
+
+        // Sort by sttChinh, keeping nulls in their relative position
+        console.log('[PDF] Sorting records by sttChinh...');
+        return [...recordsToSort].sort((a, b) => {
+            // If both have sttChinh, sort by it
+            if (a.sttChinh !== null && b.sttChinh !== null) {
+                return a.sttChinh - b.sttChinh;
+            }
+            // Keep original order for records without sttChinh
+            return 0;
+        });
+    }, []);
+
     const handleFileSelect = useCallback(async (file: File) => {
         // Validate file size (15MB limit - images are smaller after render)
         if (file.size > 15 * 1024 * 1024) {
@@ -137,130 +199,142 @@ export default function PdfPage() {
                 recordsFound: 0,
             });
 
-            // Step 2: Process each page
-            // Render page to image on CLIENT, send only image to server
+            // Initialize pageResults with all pages as 'pending'
+            const initialPageResults: PageResult[] = Array.from({ length: pageCount }, (_, i) => ({
+                pageNum: i + 1,
+                status: 'pending' as const,
+                recordCount: 0,
+            }));
+            setPageResults(initialPageResults);
+
+            // Step 2: Process pages in parallel batches for speed
+            // Render pages on CLIENT, send images to server for OCR
             const allRecords: CT3ARecord[] = [];
-            const failedPages: number[] = []; // Track failed pages for reporting
-            const MAX_RETRIES = 1; // Only try once - don't waste time on timeout pages
+            const failedPages: number[] = [];
+            const BATCH_SIZE = 3; // Process 3 pages in parallel (Gemini free tier rate limit)
             stopProcessingRef.current = false;
             collectedRecordsRef.current = [];
 
-            for (let pageIndex = 0; pageIndex < pageCount; pageIndex++) {
+            // Helper function to process a single page
+            const processPage = async (pageIndex: number): Promise<{ pageNum: number; records: CT3ARecord[]; success: boolean; processingTimeMs: number }> => {
+                const pageNum = pageIndex + 1;
+                const startTime = Date.now();
+
+                try {
+                    // Render page to image on CLIENT side
+                    const renderedPage = await renderPageToImage(file, pageIndex, 2);
+
+                    // Check if stop was requested
+                    if (stopProcessingRef.current) {
+                        return { pageNum, records: [], success: true, processingTimeMs: Date.now() - startTime };
+                    }
+
+                    // Send image to local Next.js API for OCR processing
+                    const pageResponse = await fetch('/api/pdf-ocr-page', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            imageBase64: renderedPage.imageBase64,
+                            pageNumber: renderedPage.pageNumber,
+                        }),
+                    });
+
+                    const pageResult = await pageResponse.json();
+                    const processingTimeMs = Date.now() - startTime;
+
+                    if (!pageResult.success) {
+                        console.error(`[PDF] Page ${pageNum} failed:`, pageResult.error);
+                        return { pageNum, records: [], success: false, processingTimeMs };
+                    }
+
+                    console.log(`[PDF] Page ${pageNum}: ${pageResult.records?.length || 0} records (${(processingTimeMs / 1000).toFixed(1)}s)`);
+                    return { pageNum, records: pageResult.records || [], success: true, processingTimeMs };
+                } catch (error) {
+                    console.error(`[PDF] Error processing page ${pageNum}:`, error);
+                    return { pageNum, records: [], success: false, processingTimeMs: Date.now() - startTime };
+                }
+            };
+
+            // Process pages in batches
+            for (let batchStart = 0; batchStart < pageCount; batchStart += BATCH_SIZE) {
                 // Check if user requested to stop
                 if (stopProcessingRef.current) {
                     console.log('[PDF] User requested stop. Showing collected results.');
                     break;
                 }
 
-                const pageNum = pageIndex + 1;
-                const progressPercent = 10 + Math.floor(((pageIndex + 1) / pageCount) * 85);
+                const batchEnd = Math.min(batchStart + BATCH_SIZE, pageCount);
+                const batchPageIndices = Array.from({ length: batchEnd - batchStart }, (_, i) => batchStart + i);
 
+                // Mark pages in this batch as 'processing'
+                setPageResults(prev => prev.map(p =>
+                    batchPageIndices.includes(p.pageNum - 1)
+                        ? { ...p, status: 'processing' as const }
+                        : p
+                ));
+
+                // Update progress for batch start
+                const progressPercent = 10 + Math.floor((batchEnd / pageCount) * 85);
                 setProgress(prev => ({
                     ...prev,
-                    message: `Đang render trang ${pageNum}/${pageCount}...`,
-                    percent: progressPercent - 8,
-                    currentPage: pageNum,
+                    message: `Đang xử lý trang ${batchStart + 1}-${batchEnd}/${pageCount}...`,
+                    percent: progressPercent - 10,
+                    currentPage: batchEnd,
                 }));
 
-                let success = false;
-                let lastError: string | null = null;
+                // Process batch in parallel
+                const batchResults = await Promise.all(batchPageIndices.map(processPage));
 
-                // Retry logic for each page
-                for (let attempt = 0; attempt < MAX_RETRIES && !success; attempt++) {
-                    try {
-                        if (attempt > 0) {
-                            console.log(`[PDF] Retry attempt ${attempt + 1} for page ${pageNum}`);
-                            setProgress(prev => ({
-                                ...prev,
-                                message: `Đang thử lại trang ${pageNum}... (lần ${attempt + 1})`,
-                            }));
-                        }
-
-                        // Render page to image on CLIENT side
-                        setProgress(prev => ({
-                            ...prev,
-                            message: `Đang render trang ${pageNum}/${pageCount}...`,
-                        }));
-
-                        const renderedPage = await renderPageToImage(file, pageIndex, 2);
-
-                        // Check stop again after render
-                        if (stopProcessingRef.current) {
-                            success = true; // Mark as success to avoid warning
-                            break;
-                        }
-
-                        setProgress(prev => ({
-                            ...prev,
-                            message: `Đang phân tích trang ${pageNum}/${pageCount}...`,
-                            percent: progressPercent - 3,
-                        }));
-
-                        // Send only the image to server (much smaller than PDF!)
-                        const pageResponse = await fetch('/api/pdf-ocr-page', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                imageBase64: renderedPage.imageBase64,
-                                pageNumber: renderedPage.pageNumber,
-                            }),
-                        });
-
-                        // Check stop after API call
-                        if (stopProcessingRef.current) {
-                            success = true;
-                            break;
-                        }
-
-                        const pageResult = await pageResponse.json();
-
-                        if (!pageResult.success) {
-                            lastError = pageResult.error || 'Unknown error';
-                            continue;
-                        }
-
-                        // Add records from this page
-                        if (pageResult.records && pageResult.records.length > 0) {
-                            allRecords.push(...pageResult.records);
-                            // Update ref so stop handler can access current records
-                            collectedRecordsRef.current = [...allRecords];
-                        }
-
-                        success = true;
-
-                        // Update progress
-                        setProgress(prev => ({
-                            ...prev,
-                            percent: progressPercent,
-                            recordsFound: allRecords.length,
-                            message: `Hoàn thành trang ${pageNum}/${pageCount} - Tìm thấy ${pageResult.records?.length || 0} bản ghi`,
-                        }));
-
-                        console.log(`[PDF] Page ${pageNum}: ${pageResult.records?.length || 0} records`);
-
-                    } catch (fetchError) {
-                        lastError = fetchError instanceof Error ? fetchError.message : 'Network error';
-                        console.error(`[PDF] Error processing page ${pageNum}:`, fetchError);
+                // Update pageResults with actual results
+                setPageResults(prev => prev.map(p => {
+                    const result = batchResults.find(r => r.pageNum === p.pageNum);
+                    if (result) {
+                        return {
+                            ...p,
+                            status: result.success ? 'success' as const : 'error' as const,
+                            recordCount: result.records.length,
+                            errorMessage: result.success ? undefined : 'Lỗi khi xử lý trang',
+                            processingTimeMs: result.processingTimeMs,
+                        };
                     }
-                }
+                    return p;
+                }));
 
-                // Check stop after processing page - break from outer loop
+                // Check stop after batch
                 if (stopProcessingRef.current) {
-                    console.log('[PDF] Stop requested - breaking from page loop');
+                    // Still collect any results we got
+                    for (const result of batchResults) {
+                        if (result.success && result.records.length > 0) {
+                            // Attach pageNumber to each record for page-based editing UI
+                            const recordsWithPage = result.records.map(r => ({ ...r, pageNumber: result.pageNum }));
+                            allRecords.push(...recordsWithPage);
+                        }
+                    }
+                    collectedRecordsRef.current = [...allRecords];
                     break;
                 }
 
-                // If failed, track the page number and continue to next page
-                if (!success && !stopProcessingRef.current) {
-                    failedPages.push(pageNum);
-                    console.warn(`[PDF] Page ${pageNum} failed, will skip and report at end`);
-
-                    // Update progress to show skip
-                    setProgress(prev => ({
-                        ...prev,
-                        message: `Trang ${pageNum} lỗi - bỏ qua, đang xử lý tiếp...`,
-                    }));
+                // Collect results from batch
+                for (const result of batchResults) {
+                    if (result.success && result.records.length > 0) {
+                        // Attach pageNumber to each record for page-based editing UI
+                        const recordsWithPage = result.records.map(r => ({ ...r, pageNumber: result.pageNum }));
+                        allRecords.push(...recordsWithPage);
+                    } else if (!result.success) {
+                        failedPages.push(result.pageNum);
+                    }
                 }
+
+                // Update ref so stop handler can access current records
+                collectedRecordsRef.current = [...allRecords];
+
+                // Update progress
+                setProgress(prev => ({
+                    ...prev,
+                    percent: progressPercent,
+                    recordsFound: allRecords.length,
+                    message: `Hoàn thành batch ${Math.ceil(batchEnd / BATCH_SIZE)}/${Math.ceil(pageCount / BATCH_SIZE)} - Tìm thấy ${allRecords.length} bản ghi`,
+                }));
             }
 
             // Step 3: Complete processing
@@ -283,8 +357,14 @@ export default function PdfPage() {
                 recordsFound: allRecords.length,
             });
 
-            // Store pending records for editing
-            setPendingRecords(allRecords);
+            // Store pending records for editing (sorted by sttChinh if available)
+            const sortedRecords = sortRecordsBySttChinh(allRecords);
+            setPendingRecords(sortedRecords);
+            // Calculate and save the final elapsed time from startTimeRef (more accurate than async state)
+            const finalElapsed = startTimeRef.current
+                ? Math.floor((Date.now() - startTimeRef.current) / 1000)
+                : elapsedSeconds;
+            setFinalElapsedSeconds(finalElapsed);
             setStep('editing');
 
         } catch (err) {
@@ -362,13 +442,25 @@ export default function PdfPage() {
         });
     }, []);
 
-    // Estimate remaining time (1 minute per page)
+    // Format elapsed time for display
+    const formatElapsedTime = (seconds: number): string => {
+        if (seconds < 60) return `${seconds}s`;
+        const minutes = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${minutes}m ${secs}s`;
+    };
+
+    // Estimate remaining time (~28 seconds per page based on actual data)
     const getEstimatedTime = () => {
         if (progress.totalPages === 0) return '';
         const remaining = progress.totalPages - progress.currentPage;
-        const minutes = remaining; // 1 minute per page
-        if (minutes <= 0) return '';
-        if (minutes === 1) return '~1 phút';
+        if (remaining <= 0) return '';
+
+        const SECONDS_PER_PAGE = 28; // Based on actual processing times: 24-36s avg
+        const remainingSeconds = remaining * SECONDS_PER_PAGE;
+
+        if (remainingSeconds < 60) return `~${remainingSeconds}s`;
+        const minutes = Math.ceil(remainingSeconds / 60);
         return `~${minutes} phút`;
     };
 
@@ -438,6 +530,15 @@ export default function PdfPage() {
                                     onFileSelect={handleFileSelect}
                                     isProcessing={isProcessing}
                                     error={error}
+                                    progress={progress}
+                                    pageResults={pageResults}
+                                    onStopProcessing={() => {
+                                        stopProcessingRef.current = true;
+                                        setProgress(prev => ({
+                                            ...prev,
+                                            message: 'Đang dừng và lưu kết quả...',
+                                        }));
+                                    }}
                                 />
                             </div>
                         ) : null}
@@ -445,6 +546,13 @@ export default function PdfPage() {
                         {step === 'processing' ? (
                             <div className="processing-section">
                                 <div className="processing-content">
+                                    {/* Live Timer Badge */}
+                                    <div className="timer-badge">
+                                        <span className="timer-icon">⏱️</span>
+                                        <span className="timer-label">Đã chạy:</span>
+                                        <span className="timer-value">{formatElapsedTime(elapsedSeconds)}</span>
+                                    </div>
+
                                     <div className="spinner-container">
                                         <div className="spinner"></div>
                                         {progress.totalPages > 0 && (
@@ -513,6 +621,8 @@ export default function PdfPage() {
                             <div className="editing-section">
                                 <CT3ADataReviewTable
                                     records={pendingRecords}
+                                    pageResults={pageResults}
+                                    totalElapsedSeconds={finalElapsedSeconds}
                                     onConfirmAll={handleConfirmEditedData}
                                     onCancel={handleCancelEdit}
                                 />
@@ -697,6 +807,41 @@ export default function PdfPage() {
                     gap: 16px;
                     max-width: 500px;
                     margin: 0 auto;
+                }
+
+                .timer-badge {
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    padding: 14px 28px;
+                    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+                    border-radius: 50px;
+                    box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+                    animation: pulse-glow 2s infinite;
+                }
+
+                @keyframes pulse-glow {
+                    0%, 100% { box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4); }
+                    50% { box-shadow: 0 6px 25px rgba(59, 130, 246, 0.6); }
+                }
+
+                .timer-icon {
+                    font-size: 24px;
+                }
+
+                .timer-label {
+                    font-size: 14px;
+                    color: rgba(255, 255, 255, 0.85);
+                    font-weight: 500;
+                }
+
+                .timer-value {
+                    font-size: 28px;
+                    font-weight: 700;
+                    color: white;
+                    font-variant-numeric: tabular-nums;
+                    min-width: 70px;
+                    text-align: center;
                 }
 
                 .spinner-container {

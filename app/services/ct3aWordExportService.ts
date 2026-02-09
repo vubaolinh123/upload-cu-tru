@@ -101,7 +101,7 @@ function createHeaderRow(): TableRow {
 function createDataRow(record: CT3ARecord, index: number): TableRow {
     return new TableRow({
         children: [
-            createCell((record.stt || index + 1).toString(), false, TABLE_COLUMNS[0].width),
+            createCell((record.sttTrongHo || index + 1).toString(), false, TABLE_COLUMNS[0].width),
             createCell(record.hoTen || '', false, TABLE_COLUMNS[1].width),
             createCell(record.soDDCN_CCCD || '', false, TABLE_COLUMNS[2].width),
             createCell(record.ngaySinh || '', false, TABLE_COLUMNS[3].width),
