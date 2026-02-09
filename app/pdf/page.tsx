@@ -97,9 +97,9 @@ export default function PdfPage() {
     }, [records, fileName, totalPages, isHydrated]);
 
     const handleFileSelect = useCallback(async (file: File) => {
-        // Validate file size (10MB limit - increased for multi-page PDFs)
-        if (file.size > 10 * 1024 * 1024) {
-            setError('File quá lớn. Vui lòng chọn file nhỏ hơn 10MB.');
+        // Validate file size (7MB limit)
+        if (file.size > 7 * 1024 * 1024) {
+            setError('File quá lớn. Vui lòng chọn file nhỏ hơn 7MB.');
             return;
         }
 
@@ -108,7 +108,7 @@ export default function PdfPage() {
         setSuccessMessage(undefined);
         setStep('processing');
         setProgress({
-            message: 'Đang upload file PDF...',
+            message: 'Đang kiểm tra file PDF...',
             percent: 2,
             currentPage: 0,
             totalPages: 0,
@@ -116,22 +116,22 @@ export default function PdfPage() {
         });
 
         try {
-            // Step 1: Upload PDF and get session info
-            const formData = new FormData();
-            formData.append('pdf', file);
+            // Step 1: Get PDF info (page count)
+            const infoFormData = new FormData();
+            infoFormData.append('pdf', file);
 
             const uploadResponse = await fetch('/api/pdf-ocr', {
                 method: 'POST',
-                body: formData,
+                body: infoFormData,
             });
 
             const uploadResult = await uploadResponse.json();
 
             if (!uploadResult.success) {
-                throw new Error(uploadResult.error || 'Failed to upload PDF');
+                throw new Error(uploadResult.error || 'Failed to read PDF');
             }
 
-            const { sessionId, pageCount, fileName: uploadedFileName } = uploadResult;
+            const { pageCount, fileName: uploadedFileName } = uploadResult;
             setFileName(uploadedFileName);
             setTotalPages(pageCount);
 
@@ -144,6 +144,7 @@ export default function PdfPage() {
             });
 
             // Step 2: Process each page with separate API calls
+            // Send PDF file with each request (serverless-compatible)
             const allRecords: CT3ARecord[] = [];
             const MAX_RETRIES = 2;
 
@@ -154,7 +155,7 @@ export default function PdfPage() {
                 setProgress(prev => ({
                     ...prev,
                     message: `Đang xử lý trang ${pageNum}/${pageCount}...`,
-                    percent: progressPercent - 5, // Show progress before completion
+                    percent: progressPercent - 5,
                     currentPage: pageNum,
                 }));
 
@@ -172,17 +173,21 @@ export default function PdfPage() {
                             }));
                         }
 
+                        // Create FormData with PDF file and pageIndex
+                        const pageFormData = new FormData();
+                        pageFormData.append('pdf', file);
+                        pageFormData.append('pageIndex', pageIndex.toString());
+
                         const pageResponse = await fetch('/api/pdf-ocr-page', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ sessionId, pageIndex }),
+                            body: pageFormData,
                         });
 
                         const pageResult = await pageResponse.json();
 
                         if (!pageResult.success) {
                             lastError = pageResult.error || 'Unknown error';
-                            continue; // Try again
+                            continue;
                         }
 
                         // Add records from this page
@@ -461,7 +466,7 @@ export default function PdfPage() {
                         <div className="instructions">
                             <h3>Hướng dẫn sử dụng</h3>
                             <ol>
-                                <li>Upload file PDF chứa bảng dữ liệu CT3A (tối đa 10MB)</li>
+                                <li>Upload file PDF chứa bảng dữ liệu CT3A (tối đa 7MB)</li>
                                 <li>Hệ thống sẽ tự động chuyển đổi từng trang PDF thành ảnh</li>
                                 <li>AI sẽ đọc và trích xuất dữ liệu từ các bảng</li>
                                 <li><strong>Kiểm tra và chỉnh sửa</strong> dữ liệu nếu cần</li>

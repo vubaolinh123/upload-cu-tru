@@ -3,7 +3,6 @@ import OpenAI from 'openai';
 import * as mupdf from 'mupdf';
 import { CT3ARecord } from '../../types/pdfTypes';
 import { PDF_OCR_PROMPT, OPENAI_PDF_CONFIG } from '../../lib/pdfOcrConfig';
-import { getSession } from '../../lib/pdfSessionStore';
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -27,43 +26,55 @@ function renderPageToImage(doc: mupdf.Document, pageIndex: number): Buffer {
 
 /**
  * Process a single PDF page with OCR
- * This endpoint is designed to complete within ~60 seconds
+ * Receives PDF file + pageIndex in FormData (stateless, serverless-compatible)
  */
 export async function POST(request: NextRequest) {
     try {
-        const body = await request.json();
-        const { sessionId, pageIndex } = body;
+        const formData = await request.formData();
+        const file = formData.get('pdf') as File | null;
+        const pageIndexStr = formData.get('pageIndex') as string | null;
 
         // Validate input
-        if (!sessionId || pageIndex === undefined) {
+        if (!file) {
             return NextResponse.json(
-                { success: false, error: 'Missing sessionId or pageIndex' },
+                { success: false, error: 'No PDF file provided' },
                 { status: 400 }
             );
         }
 
-        // Get session
-        const session = getSession(sessionId);
-        if (!session) {
+        if (pageIndexStr === null || pageIndexStr === undefined) {
             return NextResponse.json(
-                { success: false, error: 'Session not found or expired. Please re-upload the PDF.' },
-                { status: 404 }
+                { success: false, error: 'Missing pageIndex parameter' },
+                { status: 400 }
             );
         }
 
-        // Validate page index
-        if (pageIndex < 0 || pageIndex >= session.pageCount) {
+        const pageIndex = parseInt(pageIndexStr, 10);
+        if (isNaN(pageIndex) || pageIndex < 0) {
             return NextResponse.json(
-                { success: false, error: `Invalid page index: ${pageIndex}` },
+                { success: false, error: 'Invalid pageIndex' },
+                { status: 400 }
+            );
+        }
+
+        // Convert File to Uint8Array
+        const arrayBuffer = await file.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+
+        // Open PDF document
+        const doc = mupdf.Document.openDocument(uint8Array, 'application/pdf');
+        const pageCount = doc.countPages();
+
+        // Validate page index
+        if (pageIndex >= pageCount) {
+            return NextResponse.json(
+                { success: false, error: `Invalid page index: ${pageIndex}. PDF has ${pageCount} pages.` },
                 { status: 400 }
             );
         }
 
         const pageNum = pageIndex + 1;
-        console.log(`[PDF-OCR-Page] Processing page ${pageNum}/${session.pageCount} for session ${sessionId}`);
-
-        // Open PDF document
-        const doc = mupdf.Document.openDocument(session.pdfBuffer, 'application/pdf');
+        console.log(`[PDF-OCR-Page] Processing page ${pageNum}/${pageCount}`);
 
         // Render page to image
         console.log(`[PDF-OCR-Page] Rendering page ${pageNum}...`);
@@ -137,7 +148,7 @@ export async function POST(request: NextRequest) {
 // Handle unsupported methods
 export async function GET() {
     return NextResponse.json(
-        { success: false, error: 'Method not allowed. Use POST with sessionId and pageIndex.' },
+        { success: false, error: 'Method not allowed. Use POST with FormData containing pdf and pageIndex.' },
         { status: 405 }
     );
 }

@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as mupdf from 'mupdf';
-import { createSession } from '../../lib/pdfSessionStore';
 
-// Maximum file size: 10MB
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
+// Maximum file size: 7MB
+const MAX_FILE_SIZE = 7 * 1024 * 1024;
 
 /**
- * Upload PDF and create a session for per-page processing
- * Returns session ID and page count
+ * Validate PDF and return page count
+ * No session storage - each page request will send the PDF again (serverless-compatible)
  */
 export async function POST(request: NextRequest) {
     try {
@@ -32,12 +31,12 @@ export async function POST(request: NextRequest) {
         // Validate file size
         if (file.size > MAX_FILE_SIZE) {
             return NextResponse.json(
-                { success: false, error: 'File quá lớn. Vui lòng chọn file nhỏ hơn 10MB.' },
+                { success: false, error: 'File quá lớn. Vui lòng chọn file nhỏ hơn 7MB.' },
                 { status: 400 }
             );
         }
 
-        console.log(`[PDF-OCR] Uploading file: ${file.name}, size: ${file.size} bytes`);
+        console.log(`[PDF-OCR] Reading file: ${file.name}, size: ${file.size} bytes`);
 
         // Convert File to Uint8Array
         const arrayBuffer = await file.arrayBuffer();
@@ -57,17 +56,11 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Create session and store PDF buffer
-        const sessionId = createSession(uint8Array, file.name, pageCount);
-
-        console.log(`[PDF-OCR] Session created: ${sessionId}`);
-
         return NextResponse.json({
             success: true,
-            sessionId,
             fileName: file.name,
             pageCount,
-            message: `PDF uploaded successfully. Ready to process ${pageCount} pages.`,
+            message: `PDF validated successfully. Found ${pageCount} pages.`,
         });
 
     } catch (error) {
