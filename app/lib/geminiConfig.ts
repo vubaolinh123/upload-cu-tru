@@ -40,9 +40,14 @@ export function getGeminiClient(): GoogleGenAI {
  *    - Tốt cho documents phức tạp
  */
 export const GEMINI_CONFIG = {
-  // Model tốt nhất cho OCR - nhanh, rẻ, chính xác
-  model: 'gemini-2.0-flash',
+  // Cho phép override qua env, fallback model OCR ổn định
+  model: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
   maxOutputTokens: 16384,
+  // Giảm độ ngẫu nhiên để hạn chế lệch cột giữa các lần chạy
+  temperature: 0,
+  topP: 0.1,
+  topK: 1,
+  seed: 42,
   // Yêu cầu Gemini trả về JSON thuần túy (không markdown code blocks)
   responseMimeType: 'application/json',
 };
@@ -129,6 +134,19 @@ Các cột khác:
 - "oDauDen": Ở đâu đến
 - "ngayDen": Ngày đến (định dạng DD/MM/YYYY)
 - "diaChiThuongTru": Địa chỉ thường trú
+
+⚠️ CHỐNG NHẦM CỘT BẮT BUỘC (ƯU TIÊN CAO NHẤT):
+- TUYỆT ĐỐI KHÔNG ĐƯỢC dịch dữ liệu sang cột bên cạnh.
+- "quocTich" CHỈ là quốc tịch (ví dụ: "Việt Nam"), KHÔNG BAO GIỜ là mã/ số hồ sơ.
+- "soHSCT" CHỈ là mã/số HSCT, KHÔNG BAO GIỜ là quốc tịch.
+- "queQuan" là quê quán/nguyên quán (địa danh gốc), KHÔNG phải địa chỉ thường trú chi tiết.
+- "diaChiThuongTru" là địa chỉ thường trú hiện tại (thường có số nhà/đường/phường/xã/quận/huyện/tỉnh).
+- Nếu không chắc 1 giá trị thuộc cột nào: để null ở cột đó, KHÔNG tự đẩy sang cột khác.
+
+Ví dụ sai thường gặp cần TRÁNH:
+- SAI: "soHSCT" điền vào "quocTich".
+- SAI: "queQuan" điền vào "diaChiThuongTru" hoặc ngược lại.
+- SAI: thiếu "diaChiThuongTru" do đẩy nhầm dữ liệu sang cột khác.
 
 QUAN TRỌNG:
 1. Đọc TẤT CẢ các dòng dữ liệu trong bảng, không bỏ sót dòng nào

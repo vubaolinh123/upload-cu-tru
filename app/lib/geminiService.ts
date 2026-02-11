@@ -36,6 +36,305 @@ export interface PDFOCRRecord {
     diaChiThuongTru: string | null;
 }
 
+type GeminiRequestType = 'image' | 'pdf-page';
+
+const geminiTokenStats = {
+    totalPromptTokens: 0,
+    totalCompletionTokens: 0,
+    totalTokens: 0,
+    totalRequests: 0,
+    imageRequests: 0,
+    pdfPageRequests: 0,
+};
+
+const EMPTY_VALUE_REGEX = /^(null|undefined|n\/a|na)$/i;
+const DATE_VALUE_REGEX = /^\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}$/;
+
+const KNOWN_NATIONALITIES = new Set([
+    'viet nam',
+    'vietnam',
+    'vn',
+    'lao',
+    'campuchia',
+    'cambodia',
+    'thai lan',
+    'trung quoc',
+    'han quoc',
+    'nhat ban',
+    'hoa ky',
+    'my',
+    'duc',
+    'phap',
+    'nga',
+    'anh',
+    'uc',
+    'canada',
+    'singapore',
+    'malaysia',
+    'indonesia',
+    'philippines',
+    'an do',
+    'india',
+    'khong quoc tich',
+]);
+
+const ADDRESS_STRONG_MARKERS = [
+    'duong',
+    'so nha',
+    'hem',
+    'ngo',
+    'ngach',
+    'can ho',
+    'chung cu',
+    'toa',
+    'khu pho',
+    'ap',
+    'thon',
+    'xom',
+    'to dan pho',
+];
+
+const ADDRESS_LOCATION_MARKERS = [
+    'phuong',
+    'xa',
+    'quan',
+    'huyen',
+    'tinh',
+    'thanh pho',
+    'tp',
+];
+
+function normalizeVietnameseText(value: string): string {
+    return value
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd')
+        .replace(/Đ/g, 'd')
+        .toLowerCase()
+        .replace(/[.,;:]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function normalizeNullableString(value: unknown): string | null {
+    if (value === null || value === undefined) {
+        return null;
+    }
+
+    const normalized = String(value).trim();
+    if (!normalized || EMPTY_VALUE_REGEX.test(normalized)) {
+        return null;
+    }
+
+    return normalized;
+}
+
+function toNullableInteger(value: unknown): number | null {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return Math.trunc(value);
+    }
+
+    if (typeof value === 'string') {
+        const match = value.trim().match(/-?\d+/);
+        if (!match) return null;
+        const parsed = Number(match[0]);
+        return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    return null;
+}
+
+function toRequiredPositiveInteger(value: unknown, fallback: number): number {
+    const parsed = toNullableInteger(value);
+    return parsed !== null && parsed > 0 ? parsed : fallback;
+}
+
+function isLikelyNationality(value: string | null): boolean {
+    if (!value) return false;
+    const normalized = normalizeVietnameseText(value);
+    if (!normalized || /\d/.test(normalized)) return false;
+    return KNOWN_NATIONALITIES.has(normalized);
+}
+
+function isLikelyDetailedAddress(value: string | null): boolean {
+    if (!value) return false;
+
+    const normalized = normalizeVietnameseText(value);
+    if (!normalized) return false;
+
+    const hasStrongMarker = ADDRESS_STRONG_MARKERS.some((marker) => normalized.includes(marker));
+    if (hasStrongMarker) return true;
+
+    const hasLocationMarker = ADDRESS_LOCATION_MARKERS.some((marker) => normalized.includes(marker));
+    const digitCount = (value.match(/\d/g) ?? []).length;
+
+    // Chỉ coi là địa chỉ thường trú khi có tín hiệu mạnh (số nhà/đường/đánh số)
+    // để tránh nhầm các chuỗi địa danh kiểu "Xã..., Huyện..., Tỉnh..." (thường là quê quán)
+    if (digitCount >= 2 && hasLocationMarker) return true;
+
+    return false;
+}
+
+function isLikelyHSCTCode(value: string | null): boolean {
+    if (!value) return false;
+
+    const normalized = normalizeVietnameseText(value);
+    if (!normalized || DATE_VALUE_REGEX.test(value.trim())) return false;
+    if (isLikelyNationality(value) || isLikelyDetailedAddress(value)) return false;
+
+    if (normalized.includes('hsct')) return true;
+
+    const digitCount = (value.match(/\d/g) ?? []).length;
+    if (digitCount >= 3) return true;
+
+    if (/^[A-Za-z0-9./-]+$/.test(value) && digitCount > 0) {
+        return true;
+    }
+
+    return false;
+}
+
+function applyPdfColumnGuards(record: PDFOCRRecord): { record: PDFOCRRecord; corrections: string[] } {
+    const next = { ...record };
+    const corrections: string[] = [];
+
+    const quocTichLooksNationality = isLikelyNationality(next.quocTich);
+    const quocTichLooksHSCT = isLikelyHSCTCode(next.quocTich);
+    const soHSCTLooksNationality = isLikelyNationality(next.soHSCT);
+
+    // Guard 1: Số HSCT <-> Quốc tịch
+    if (quocTichLooksHSCT && soHSCTLooksNationality) {
+        const temp = next.quocTich;
+        next.quocTich = next.soHSCT;
+        next.soHSCT = temp;
+        corrections.push('swap_soHSCT_quocTich');
+    } else if (quocTichLooksHSCT && !next.soHSCT) {
+        next.soHSCT = next.quocTich;
+        next.quocTich = null;
+        corrections.push('move_soHSCT_from_quocTich');
+    } else if (!quocTichLooksNationality && !next.quocTich && soHSCTLooksNationality) {
+        next.quocTich = next.soHSCT;
+        next.soHSCT = null;
+        corrections.push('move_quocTich_from_soHSCT');
+    }
+
+    const queQuanLooksAddress = isLikelyDetailedAddress(next.queQuan);
+    const diaChiLooksAddress = isLikelyDetailedAddress(next.diaChiThuongTru);
+
+    // Guard 2: Quê quán <-> Địa chỉ thường trú
+    if (next.queQuan && next.diaChiThuongTru && queQuanLooksAddress && !diaChiLooksAddress) {
+        const temp = next.queQuan;
+        next.queQuan = next.diaChiThuongTru;
+        next.diaChiThuongTru = temp;
+        corrections.push('swap_queQuan_diaChiThuongTru');
+    } else if (!next.diaChiThuongTru && next.queQuan && queQuanLooksAddress) {
+        next.diaChiThuongTru = next.queQuan;
+        next.queQuan = null;
+        corrections.push('move_diaChiThuongTru_from_queQuan');
+    }
+
+    return { record: next, corrections };
+}
+
+function normalizePdfRecords(rawRecords: unknown[]): PDFOCRRecord[] {
+    const correctionStats = {
+        swap_soHSCT_quocTich: 0,
+        move_soHSCT_from_quocTich: 0,
+        move_quocTich_from_soHSCT: 0,
+        swap_queQuan_diaChiThuongTru: 0,
+        move_diaChiThuongTru_from_queQuan: 0,
+    };
+
+    const normalized = rawRecords.map((rawRecord, index) => {
+        const safeRecord = (typeof rawRecord === 'object' && rawRecord !== null
+            ? rawRecord
+            : {}) as Partial<PDFOCRRecord>;
+
+        const base: PDFOCRRecord = {
+            sttChinh: toNullableInteger(safeRecord.sttChinh),
+            sttTrongHo: toRequiredPositiveInteger(safeRecord.sttTrongHo, index + 1),
+            hoTen: normalizeNullableString(safeRecord.hoTen),
+            soDDCN_CCCD: normalizeNullableString(safeRecord.soDDCN_CCCD),
+            ngaySinh: normalizeNullableString(safeRecord.ngaySinh),
+            gioiTinh: normalizeNullableString(safeRecord.gioiTinh),
+            queQuan: normalizeNullableString(safeRecord.queQuan),
+            danToc: normalizeNullableString(safeRecord.danToc),
+            quocTich: normalizeNullableString(safeRecord.quocTich),
+            soHSCT: normalizeNullableString(safeRecord.soHSCT),
+            quanHeVoiChuHo: normalizeNullableString(safeRecord.quanHeVoiChuHo),
+            oDauDen: normalizeNullableString(safeRecord.oDauDen),
+            ngayDen: normalizeNullableString(safeRecord.ngayDen),
+            diaChiThuongTru: normalizeNullableString(safeRecord.diaChiThuongTru),
+        };
+
+        const guarded = applyPdfColumnGuards(base);
+        guarded.corrections.forEach((key) => {
+            if (key in correctionStats) {
+                correctionStats[key as keyof typeof correctionStats] += 1;
+            }
+        });
+
+        return guarded.record;
+    });
+
+    const totalCorrections = Object.values(correctionStats).reduce((sum, count) => sum + count, 0);
+    if (totalCorrections > 0) {
+        console.warn('[Gemini] PDF column guards applied:', correctionStats);
+    }
+
+    return normalized;
+}
+
+function toSafeTokenNumber(value: unknown): number {
+    return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+function logGeminiTokenUsage(
+    requestType: GeminiRequestType,
+    response: unknown,
+    context?: { pageNumber?: number }
+): void {
+    const responseObject = response as {
+        usageMetadata?: Record<string, unknown>;
+        usage_metadata?: Record<string, unknown>;
+    };
+    const usageMetadata = responseObject?.usageMetadata ?? responseObject?.usage_metadata;
+
+    const promptTokens = toSafeTokenNumber(usageMetadata?.promptTokenCount);
+    const completionTokens = toSafeTokenNumber(usageMetadata?.candidatesTokenCount);
+    const totalTokensFromApi = toSafeTokenNumber(
+        usageMetadata?.totalTokenCount ?? usageMetadata?.totalTokens ?? usageMetadata?.total_token_count
+    );
+    const totalTokens = totalTokensFromApi > 0 ? totalTokensFromApi : promptTokens + completionTokens;
+    const cachedContentTokens = toSafeTokenNumber(usageMetadata?.cachedContentTokenCount);
+
+    geminiTokenStats.totalRequests += 1;
+    geminiTokenStats.totalPromptTokens += promptTokens;
+    geminiTokenStats.totalCompletionTokens += completionTokens;
+    geminiTokenStats.totalTokens += totalTokens;
+
+    if (requestType === 'image') {
+        geminiTokenStats.imageRequests += 1;
+    } else {
+        geminiTokenStats.pdfPageRequests += 1;
+    }
+
+    const requestLabel = requestType === 'image'
+        ? 'image upload'
+        : `pdf page ${context?.pageNumber ?? 'unknown'}`;
+
+    if (!usageMetadata) {
+        console.warn(`[Gemini][Tokens] ${requestLabel}: usageMetadata unavailable`);
+    }
+
+    console.log(
+        `[Gemini][Tokens] ${requestLabel}: prompt=${promptTokens}, completion=${completionTokens}, total=${totalTokens}, cached=${cachedContentTokens}`
+    );
+    console.log(
+        `[Gemini][Tokens][Cumulative] requests=${geminiTokenStats.totalRequests} (image=${geminiTokenStats.imageRequests}, pdfPages=${geminiTokenStats.pdfPageRequests}), prompt=${geminiTokenStats.totalPromptTokens}, completion=${geminiTokenStats.totalCompletionTokens}, total=${geminiTokenStats.totalTokens}`
+    );
+}
+
 /**
  * Process an image with Gemini Vision for OCR
  * @param imageBase64 - Base64 encoded image (without data: prefix)
@@ -70,8 +369,14 @@ export async function processImageWithGemini(
             config: {
                 maxOutputTokens: GEMINI_CONFIG.maxOutputTokens,
                 responseMimeType: GEMINI_CONFIG.responseMimeType,
+                temperature: GEMINI_CONFIG.temperature,
+                topP: GEMINI_CONFIG.topP,
+                topK: GEMINI_CONFIG.topK,
+                seed: GEMINI_CONFIG.seed,
             },
         });
+
+        logGeminiTokenUsage('image', response);
 
         const content = response.text || '[]';
         console.log(`[Gemini] Response received, parsing JSON...`);
@@ -118,16 +423,23 @@ export async function processPdfPageWithGemini(
                         ],
                     },
                 ],
-                config: {
-                    maxOutputTokens: GEMINI_CONFIG.maxOutputTokens,
-                    responseMimeType: GEMINI_CONFIG.responseMimeType,
-                },
-            });
+            config: {
+                maxOutputTokens: GEMINI_CONFIG.maxOutputTokens,
+                responseMimeType: GEMINI_CONFIG.responseMimeType,
+                temperature: GEMINI_CONFIG.temperature,
+                topP: GEMINI_CONFIG.topP,
+                topK: GEMINI_CONFIG.topK,
+                seed: GEMINI_CONFIG.seed,
+            },
+        });
+
+            logGeminiTokenUsage('pdf-page', response, { pageNumber });
 
             const content = response.text || '[]';
             console.log(`[Gemini] Page ${pageNumber} response received, parsing JSON...`);
 
-            const records = parseJSONFromResponse<PDFOCRRecord>(content);
+            const parsedRecords = parseJSONFromResponse<PDFOCRRecord>(content);
+            const records = normalizePdfRecords(parsedRecords as unknown[]);
             console.log(`[Gemini] Page ${pageNumber}: Found ${records.length} records`);
 
             return {
