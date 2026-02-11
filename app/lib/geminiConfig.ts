@@ -41,7 +41,7 @@ export function getGeminiClient(): GoogleGenAI {
  */
 export const GEMINI_CONFIG = {
   // Cho phép override qua env, fallback model OCR ổn định
-  model: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
+  model: process.env.GEMINI_MODEL || 'gemini-2.5-pro',
   maxOutputTokens: 16384,
   // Giảm độ ngẫu nhiên để hạn chế lệch cột giữa các lần chạy
   temperature: 0,
